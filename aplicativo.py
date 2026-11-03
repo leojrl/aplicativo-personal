@@ -220,6 +220,26 @@ st.markdown(
         font-weight: 400 !important;
     }
 
+    /* Tags de MultiSelect com fundo claro e texto PRETO */
+    div[data-baseweb="tag"] {
+        background-color: #fef08a !important;
+        border: 1px solid #facc15 !important;
+        border-radius: 8px !important;
+    }
+    div[data-baseweb="tag"] span {
+        color: #000000 !important;
+        font-weight: 700 !important;
+    }
+    div[data-baseweb="tag"] svg {
+        fill: #000000 !important;
+    }
+
+    div[data-testid="stPopoverBody"] {
+        background-color: var(--kn-card-bg) !important;
+        border: 1px solid var(--kn-border) !important;
+        border-radius: 14px !important;
+    }
+
     /* Cards e Containers */
     [data-testid="stVerticalBlockBorderWrapper"] {
         background: var(--kn-card-bg) !important;
@@ -546,7 +566,12 @@ def salvar_usuarios(usuarios):
 
 def salvar_dados(dados_usuario, usuario):
     usuarios = carregar_usuarios()
-    if usuarios.get(usuario, {}).get("tipo") != "admin":
+    admin_auth = st.session_state.get("usuario_autenticado")
+    eh_autorizado = (
+        (admin_auth and usuarios.get(admin_auth, {}).get("tipo") == "admin") or
+        usuarios.get(usuario, {}).get("tipo") == "admin"
+    )
+    if not eh_autorizado:
         raise PermissionError("Somente o administrador pode alterar os treinos.")
 
     if USAR_FIRESTORE:
@@ -686,6 +711,13 @@ def obter_perfil_atleta(nome_aluno, usuarios_dict):
             break
     return perfil
 
+def notificar_sucesso(mensagem, icone="✅"):
+    if hasattr(st, "toast"):
+        try:
+            st.toast(mensagem, icon=icone)
+        except Exception:
+            pass
+
 # ==========================================
 # GRÁFICOS PERSONALIZADOS (MATPLOTLIB PRO)
 # ==========================================
@@ -747,19 +779,54 @@ def plot_volume_series(df_treinos):
 # TELA DE LOGIN (TODAS AS LETRAS EM PRETO)
 # ==========================================
 def mostrar_tela_login():
-    st.markdown(
+    estilo_fundo_tela_toda = ""
+    if LOGO_BASE64:
+        estilo_fundo_tela_toda = f"""
+        /* FUNDO DA TELA TODA DE LOGIN COM A LOGO EM TELA CHEIA */
+        [data-testid="stAppViewContainer"],
+        .stApp {{
+            background-color: #000000 !important;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.45) 65%, rgba(0, 0, 0, 0.85) 100%),
+                url('data:image/jpeg;base64,{LOGO_BASE64}') !important;
+            background-position: center center, center center !important;
+            background-repeat: no-repeat, no-repeat !important;
+            background-attachment: fixed, fixed !important;
+            background-size: cover, cover !important;
+        }}
+
+        [data-testid="stHeader"] {{
+            background: transparent !important;
+        }}
+
+        section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
+            background: transparent !important;
+        }}
         """
+
+    st.markdown(
+        f"""
         <style>
+        {estilo_fundo_tela_toda}
+
+        /* Centralização perfeita na tela de login */
+        .block-container {{
+            padding-top: 2rem !important;
+            padding-bottom: 2rem !important;
+            max-width: 480px !important;
+            margin: 0 auto !important;
+        }}
+
         /* Card de login branco com borda e sombra */
-        .st-key-card_login_box {
-            background-color: rgba(255, 255, 255, 0.95) !important;
-            border: 2px solid #cbd5e1 !important;
+        .st-key-card_login_box {{
+            background-color: rgba(255, 255, 255, 0.94) !important;
+            border: 2px solid #f5c400 !important;
             border-radius: 24px !important;
-            padding: 1.5rem !important;
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.55) !important;
-            backdrop-filter: blur(12px) !important;
-            -webkit-backdrop-filter: blur(12px) !important;
-        }
+            padding: 1.8rem !important;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(245, 196, 0, 0.25) !important;
+            backdrop-filter: blur(14px) !important;
+            -webkit-backdrop-filter: blur(14px) !important;
+        }}
 
         /* OBRIGA LETRA PRETA EM TODOS OS ELEMENTOS DO MENU INICIAL */
         .st-key-card_login_box h1,
@@ -773,98 +840,96 @@ def mostrar_tela_login():
         [data-testid="stAppViewContainer"] main [data-testid="stWidgetLabel"] p,
         [data-testid="stAppViewContainer"] main [data-testid="stWidgetLabel"] label,
         [data-testid="stAppViewContainer"] main [data-testid="stCaptionContainer"] p,
-        [data-testid="stAppViewContainer"] main [data-testid="stTabs"] button[role="tab"] {
+        [data-testid="stAppViewContainer"] main [data-testid="stTabs"] button[role="tab"] {{
             color: #000000 !important;
             font-weight: 700 !important;
-        }
+        }}
 
         /* TEXTO DIGITADO PELO USUÁRIO TOTALMENTE PRETO */
         [data-testid="stAppViewContainer"] main input,
-        [data-testid="stAppViewContainer"] main div[data-baseweb="input"] input {
+        [data-testid="stAppViewContainer"] main div[data-baseweb="input"] input {{
             color: #000000 !important;
             -webkit-text-fill-color: #000000 !important;
             caret-color: #000000 !important;
             font-weight: 700 !important;
             font-size: 1.05rem !important;
             background-color: #f8fafc !important;
-        }
+        }}
 
-        [data-testid="stAppViewContainer"] main div[data-baseweb="input"] {
+        [data-testid="stAppViewContainer"] main div[data-baseweb="input"] {{
             background-color: #f8fafc !important;
             border: 2px solid #94a3b8 !important;
             border-radius: 12px !important;
-        }
+        }}
 
-        [data-testid="stAppViewContainer"] main div[data-baseweb="input"]:focus-within {
+        [data-testid="stAppViewContainer"] main div[data-baseweb="input"]:focus-within {{
             border-color: #f5c400 !important;
             box-shadow: 0 0 0 3px rgba(245, 196, 0, 0.35) !important;
-        }
+        }}
 
-        ::placeholder {
+        ::placeholder {{
             color: #64748b !important;
             -webkit-text-fill-color: #64748b !important;
             font-weight: 500 !important;
-        }
+        }}
 
         /* Abas no Login com letras PRETAS */
-        [data-testid="stTabs"] button[role="tab"] {
+        [data-testid="stTabs"] button[role="tab"] {{
             color: #000000 !important;
             font-weight: 800 !important;
             background: #e2e8f0 !important;
             border-radius: 10px !important;
             padding: 0.55rem 1.25rem !important;
             border: 1px solid #cbd5e1 !important;
-        }
+        }}
 
-        [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {{
             background: #f5c400 !important;
             color: #000000 !important;
             border: 1px solid #eab308 !important;
             box-shadow: 0 4px 12px rgba(245, 196, 0, 0.35) !important;
-        }
+        }}
 
         /* Botão com texto em PRETO */
-        div[data-testid="stForm"] button[kind="primary"] {
+        div[data-testid="stForm"] button[kind="primary"] {{
             background: linear-gradient(135deg, #f5c400 0%, #eab308 100%) !important;
             border: none !important;
             border-radius: 12px !important;
             box-shadow: 0 4px 16px rgba(245, 196, 0, 0.35) !important;
-        }
+        }}
 
-        div[data-testid="stForm"] button[kind="primary"] p {
+        div[data-testid="stForm"] button[kind="primary"] p {{
             color: #000000 !important;
             font-weight: 800 !important;
             font-size: 1.05rem !important;
-        }
+        }}
 
         /* Foto / Logo centralizada no menu de login */
-        .st-key-card_login_box [data-testid="stImage"] {
+        .st-key-card_login_box [data-testid="stImage"] {{
             display: flex !important;
             justify-content: center !important;
             align-items: center !important;
-            margin: 0 auto 0.6rem auto !important;
+            margin: 0 auto 0.8rem auto !important;
             text-align: center !important;
-        }
+        }}
 
-        .st-key-card_login_box [data-testid="stImage"] img {
-            border-radius: 20px !important;
+        .st-key-card_login_box [data-testid="stImage"] img {{
+            border-radius: 50% !important;
             border: 3px solid #f5c400 !important;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.22) !important;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35), 0 0 25px rgba(245, 196, 0, 0.4) !important;
             margin: 0 auto !important;
             display: block !important;
             object-fit: cover !important;
-        }
+        }}
         </style>
         """,
         unsafe_allow_html=True,
     )
 
-    _, centro, _ = st.columns([1, 1.8, 1])
-    with centro:
-        st.write("")
-        with st.container(border=True, key="card_login_box"):
-            if os.path.isfile(CAMINHO_LOGO):
-                st.image(CAMINHO_LOGO, width=140)
+    st.write("")
+    with st.container(border=True, key="card_login_box"):
+        if os.path.isfile(CAMINHO_LOGO):
+            st.image(CAMINHO_LOGO, width=170)
 
             st.markdown(
                 """
@@ -978,7 +1043,10 @@ if not eh_admin and not conta_admin:
     st.stop()
 
 if eh_admin:
-    conta_dados = usuario_autenticado
+    conta_ativa = st.session_state.get("admin_conta_ativa", usuario_autenticado)
+    if conta_ativa not in contas_admin:
+        conta_ativa = usuario_autenticado
+    conta_dados = conta_ativa
     dados_conta = carregar_dados(conta_dados)
     aluno_atribuido = None
 else:
@@ -1085,113 +1153,163 @@ with st.sidebar:
     aluno_atual = None
 
     if eh_admin:
-        st.markdown("#### ⚡ Gestão de Alunos")
+        st.markdown("#### 👥 Gerenciar Atletas")
+        
+        # Sincroniza atleta selecionado com session_state
+        if "sb_aluno_ver" not in st.session_state:
+            st.session_state["sb_aluno_ver"] = 0
+
+        aluno_salvo = st.session_state.get("aluno_selecionado")
+        opcoes_aluno = ["-- Visão Geral (Todos) --"] + alunos_existentes
+        idx_aluno = 0
+        if aluno_salvo in alunos_existentes:
+            idx_aluno = opcoes_aluno.index(aluno_salvo)
+        
         opcao_aluno = st.selectbox(
-            "Selecione o Aluno",
-            ["+ Novo Aluno"] + alunos_existentes,
-            key="sb_selecionar_aluno"
+            "Atleta Selecionado",
+            opcoes_aluno,
+            index=idx_aluno,
+            key=f"sb_selecionar_aluno_{st.session_state['sb_aluno_ver']}"
         )
 
-        if opcao_aluno == "+ Novo Aluno":
-            with st.container():
-                st.markdown("**Cadastrar Novo Aluno**")
-                novo_nome = st.text_input("Nome Completo", placeholder="Ex.: Lucas Lima")
-                nova_modalidade = st.selectbox(
-                    "Modalidade Principal",
-                    list(MODALIDADES_EXERCICIOS.keys()),
-                    format_func=lambda m: MODALIDADES_ICONES.get(m, m)
-                )
+        if opcao_aluno != opcoes_aluno[idx_aluno]:
+            if opcao_aluno == opcoes_aluno[0]:
+                st.session_state["aluno_selecionado"] = None
+            else:
+                st.session_state["aluno_selecionado"] = opcao_aluno
+            st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+            st.rerun()
 
-                if st.button("Cadastrar Aluno", type="primary", use_container_width=True):
-                    if novo_nome and novo_nome not in st.session_state.db:
-                        st.session_state.db[novo_nome] = {
-                            "modalidade": nova_modalidade,
-                            "treinos": []
-                        }
-                        atualizar_db()
-                        st.success(f"Aluno {novo_nome} cadastrado com sucesso!")
-                        st.rerun()
-                    elif novo_nome in st.session_state.db:
-                        st.error("Aluno já cadastrado!")
-                    else:
-                        st.error("Informe o nome do aluno.")
-        else:
-            aluno_atual = opcao_aluno
+        aluno_atual = st.session_state.get("aluno_selecionado")
+
+        # Abas de Gerenciamento de Atletas: Cadastrar e Remover
+        tab_cad_atl, tab_rem_atl = st.tabs(["➕ Cadastrar", "🗑️ Remover"])
+
+        with tab_cad_atl:
+            novo_nome = st.text_input("Nome do Atleta", placeholder="Ex.: Lucas Lima", key="txt_novo_aluno_nome")
+            nova_modalidade = st.selectbox(
+                "Modalidade",
+                list(MODALIDADES_EXERCICIOS.keys()),
+                format_func=lambda m: MODALIDADES_ICONES.get(m, m),
+                key="sb_nova_modalidade_aluno"
+            )
+
+            if st.button("Cadastrar Atleta", type="primary", use_container_width=True, key="btn_cadastrar_aluno_sb"):
+                nome_formatado = novo_nome.strip()
+                if nome_formatado and nome_formatado not in st.session_state.db:
+                    st.session_state.db[nome_formatado] = {
+                        "modalidade": nova_modalidade,
+                        "treinos": []
+                    }
+                    atualizar_db()
+                    st.session_state["aluno_selecionado"] = nome_formatado
+                    st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                    notificar_sucesso(f"Atleta {nome_formatado} cadastrado!", "✅")
+                    st.success(f"Atleta {nome_formatado} cadastrado com sucesso!")
+                    st.rerun()
+                elif nome_formatado in st.session_state.db:
+                    st.error("Atleta já cadastrado!")
+                else:
+                    st.error("Informe o nome do atleta.")
+
+        with tab_rem_atl:
+            if not alunos_existentes:
+                st.caption("Nenhum atleta para remover.")
+            else:
+                idx_rem = alunos_existentes.index(aluno_atual) if aluno_atual in alunos_existentes else 0
+                atleta_para_remover = st.selectbox(
+                    "Atleta a excluir",
+                    alunos_existentes,
+                    index=idx_rem,
+                    key="sb_remover_atleta_sb"
+                )
+                st.caption(f"⚠️ Atenção: todos os treinos de **{atleta_para_remover}** serão excluídos.")
+                
+                if st.button("🗑️ Excluir Atleta", type="secondary", use_container_width=True, key="btn_del_atleta_sb"):
+                    st.session_state[f"confirm_del_atleta_{atleta_para_remover}"] = True
+
+                if st.session_state.get(f"confirm_del_atleta_{atleta_para_remover}"):
+                    st.warning(f"Excluir **{atleta_para_remover}** e todos os seus treinos?")
+                    c_sim, c_nao = st.columns(2)
+                    with c_sim:
+                        if st.button("Sim, excluir", key=f"btn_conf_del_atl_sim_{atleta_para_remover}", type="primary", use_container_width=True):
+                            st.session_state.db.pop(atleta_para_remover, None)
+                            atualizar_db()
+                            # Limpa vínculos em usuarios.json se houver
+                            usuarios_mod = carregar_usuarios()
+                            alterou_user = False
+                            for u_reg in usuarios_mod.values():
+                                if u_reg.get("aluno") == atleta_para_remover:
+                                    u_reg.pop("aluno", None)
+                                    alterou_user = True
+                            if alterou_user:
+                                salvar_usuarios(usuarios_mod)
+
+                            st.session_state["aluno_selecionado"] = None
+                            st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                            st.session_state.pop(f"confirm_del_atleta_{atleta_para_remover}", None)
+                            notificar_sucesso(f"Atleta {atleta_para_remover} removido!", "🗑️")
+                            st.rerun()
+                    with c_nao:
+                        if st.button("Cancelar", key=f"btn_conf_del_atl_nao_{atleta_para_remover}", use_container_width=True):
+                            st.session_state.pop(f"confirm_del_atleta_{atleta_para_remover}", None)
+                            st.rerun()
 
         st.divider()
-        st.markdown("#### 🔗 Vincular Usuário ao Treino")
-        contas_usuarios = [
-            nome for nome, registro in usuarios.items()
-            if registro.get("tipo") != "admin"
-        ]
-        if not contas_usuarios:
-            st.info("Crie uma conta de usuário pela tela inicial para vincular.")
-        elif not alunos_existentes:
-            st.info("Cadastre um aluno antes de vincular.")
-        else:
-            usuario_vinculo = st.selectbox("Conta de Login", contas_usuarios, key="sb_user_vinc")
-            opcoes_vinculo = ["Sem vínculo"] + alunos_existentes
-            vinculo_atual = usuarios[usuario_vinculo].get("aluno")
-            indice_vinculo = (
-                opcoes_vinculo.index(vinculo_atual)
-                if vinculo_atual in opcoes_vinculo
-                and usuarios[usuario_vinculo].get("conta_admin", conta_dados) == conta_dados
-                else 0
-            )
-            aluno_vinculo = st.selectbox(
-                "Aluno Liberado",
-                opcoes_vinculo,
-                index=indice_vinculo,
-                key="sb_aluno_vinc",
-                format_func=lambda n: n if n == "Sem vínculo" else f"{n} ({len(st.session_state.db[n].get('treinos', []))} ex.)"
-            )
-            if st.button("Salvar Vínculo", use_container_width=True):
-                if aluno_vinculo == "Sem vínculo":
-                    usuarios[usuario_vinculo].pop("aluno", None)
-                    usuarios[usuario_vinculo].pop("conta_admin", None)
-                else:
-                    usuarios[usuario_vinculo]["aluno"] = aluno_vinculo
-                    usuarios[usuario_vinculo]["conta_admin"] = conta_dados
-                salvar_usuarios(usuarios)
-                st.success("Vínculo salvo com sucesso!")
-                st.rerun()
+        st.markdown("#### ➕ Adicionar Exercício")
+        if aluno_atual and aluno_atual in st.session_state.db:
+            modalidade_aluno = st.session_state.db[aluno_atual].get("modalidade", "Futebol")
+            st.caption(f"Atleta: **{aluno_atual}** • {MODALIDADES_ICONES.get(modalidade_aluno, modalidade_aluno)}")
 
-        if aluno_atual:
-            st.divider()
-            st.markdown(f"#### ➕ Adicionar Exercício")
-            modalidade_aluno = st.session_state.db[aluno_atual]["modalidade"]
-            st.caption(f"Modalidade: **{MODALIDADES_ICONES.get(modalidade_aluno, modalidade_aluno)}**")
+            if st.button("💾 Salvar Treino", key="btn_salvar_sidebar", type="primary", use_container_width=True):
+                atualizar_db()
+                notificar_sucesso(f"Treino de {aluno_atual} salvo com sucesso!", "💾")
+                st.success(f"Treino de {aluno_atual} salvo!")
 
             lista_exercicios = MODALIDADES_EXERCICIOS.get(modalidade_aluno, [])
             opcao_personalizada = "+ Outro exercício"
-            exercicio_selecionado = st.selectbox(
-                "Exercício", lista_exercicios + [opcao_personalizada], key="sb_exercicio_sel"
-            )
-            if exercicio_selecionado == opcao_personalizada:
-                exercicio_selecionado = st.text_input("Nome do exercício", placeholder="Digite o exercício...")
+            
+            with st.form(f"form_add_ex_sidebar_{aluno_atual}"):
+                exercicio_selecionado = st.selectbox(
+                    "Exercício Sugerido",
+                    lista_exercicios + [opcao_personalizada],
+                    key=f"sb_ex_side_{aluno_atual}"
+                )
+                exercicio_customizado = st.text_input(
+                    "Nome Personalizado (opcional)",
+                    placeholder="Digite se for outro exercício...",
+                    key=f"txt_custom_side_{aluno_atual}"
+                )
 
-            col_sets, col_reps = st.columns(2)
-            series = col_sets.number_input("Séries", min_value=1, value=3, step=1)
-            reps = col_reps.text_input("Reps/Tempo", value="10 a 12")
+                col_sets, col_reps = st.columns(2)
+                series = col_sets.number_input("Séries", min_value=1, max_value=30, value=3, step=1, key=f"side_num_series_{aluno_atual}")
+                reps = col_reps.text_input("Reps/Tempo", value="10 a 12", key=f"side_txt_reps_{aluno_atual}")
 
-            url_video = st.text_input("URL do Vídeo (YouTube)", placeholder="https://youtube.com/...")
-            observacoes = st.text_area("Orientações / Observações", placeholder="Ex: Manter tronco firme, foco na explosão...")
+                url_video = st.text_input("URL do Vídeo (YouTube)", placeholder="https://youtube.com/...", key=f"side_txt_video_{aluno_atual}")
+                observacoes = st.text_area("Orientações / Observações", placeholder="Ex: Manter tronco firme, foco na explosão...", key=f"side_txt_obs_{aluno_atual}")
 
-            if st.button("Adicionar ao Treino", type="primary", use_container_width=True):
-                if not exercicio_selecionado.strip():
-                    st.error("Digite o nome do exercício.")
-                else:
-                    novo_treino = {
-                        "exercicio": exercicio_selecionado.strip(),
-                        "series": series,
-                        "reps": reps,
-                        "url_video": url_video.strip(),
-                        "observacoes": observacoes.strip()
-                    }
-                    st.session_state.db[aluno_atual]["treinos"].append(novo_treino)
-                    atualizar_db()
-                    st.success("Exercício adicionado ao plano!")
-                    st.rerun()
+                btn_add_side = st.form_submit_button("Adicionar ao Treino", type="primary", use_container_width=True)
+                if btn_add_side:
+                    nome_final = exercicio_customizado.strip() if exercicio_customizado.strip() else (
+                        exercicio_selecionado if exercicio_selecionado != opcao_personalizada else ""
+                    )
+                    if not nome_final:
+                        st.error("Digite ou selecione o nome do exercício.")
+                    else:
+                        novo_treino = {
+                            "exercicio": nome_final,
+                            "series": int(series),
+                            "reps": reps.strip() if reps.strip() else "10 a 12",
+                            "url_video": url_video.strip(),
+                            "observacoes": observacoes.strip()
+                        }
+                        st.session_state.db[aluno_atual].setdefault("treinos", []).append(novo_treino)
+                        atualizar_db()
+                        notificar_sucesso(f"Exercício '{nome_final}' salvo!", "💾")
+                        st.success(f"Exercício '{nome_final}' adicionado com sucesso!")
+                        st.rerun()
+        else:
+            st.info("👈 Selecione um atleta acima para adicionar exercícios à ficha dele.")
     else:
         st.markdown("#### ⚡ Meu Treino")
         aluno_atual = aluno_atribuido
@@ -1231,7 +1349,54 @@ if not aluno_atual:
         c2.metric("Exercícios no Banco", total_treinos_cadastrados)
         c3.metric("Modalidades Ativas", len(MODALIDADES_EXERCICIOS))
 
-        st.info("👈 Selecione um atleta ou cadastre um novo no menu lateral para visualizar e montar sua rotina.")
+        st.info("👈 Selecione um atleta abaixo para visualizar ou adicionar exercícios ao plano de treino.")
+
+        if total_alunos > 0:
+            with st.container(border=True):
+                st.markdown("#### ⚡ Seleção Rápida de Atleta")
+                st.caption("Escolha o atleta abaixo para abrir e montar o treino imediatamente:")
+                c_sel_rap, c_btn_rap = st.columns([3, 1], vertical_alignment="bottom")
+                with c_sel_rap:
+                    atleta_rapido_home = st.selectbox(
+                        "Selecione o Atleta:",
+                        alunos_existentes,
+                        key="sb_home_quick_select",
+                        format_func=lambda a: f"⚡ {a} ({MODALIDADES_ICONES.get(st.session_state.db[a].get('modalidade'), st.session_state.db[a].get('modalidade', 'Esporte'))}) • {len(st.session_state.db[a].get('treinos', []))} exercícios cadastrados"
+                    )
+                with c_btn_rap:
+                    if st.button("🏋️ Abrir / Montar Treino", type="primary", key="btn_home_quick_open", use_container_width=True):
+                        st.session_state["aluno_selecionado"] = atleta_rapido_home
+                        st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                        st.rerun()
+
+        with st.expander("➕ Cadastrar Novo Atleta", expanded=(total_alunos == 0)):
+            with st.form("form_cadastrar_aluno_painel"):
+                c_nom, c_mod = st.columns([1.5, 1])
+                with c_nom:
+                    dash_novo_nome = st.text_input("Nome Completo do Atleta", placeholder="Ex.: Lucas Lima", key="txt_dash_novo_aluno")
+                with c_mod:
+                    dash_nova_mod = st.selectbox(
+                        "Modalidade Principal",
+                        list(MODALIDADES_EXERCICIOS.keys()),
+                        format_func=lambda m: MODALIDADES_ICONES.get(m, m),
+                        key="sb_dash_nova_mod"
+                    )
+                if st.form_submit_button("Cadastrar e Montar Treino", type="primary", use_container_width=True):
+                    nome_limpo = dash_novo_nome.strip()
+                    if nome_limpo and nome_limpo not in st.session_state.db:
+                        st.session_state.db[nome_limpo] = {
+                            "modalidade": dash_nova_mod,
+                            "treinos": []
+                        }
+                        atualizar_db()
+                        st.session_state["aluno_selecionado"] = nome_limpo
+                        st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                        st.success(f"Atleta {nome_limpo} cadastrado com sucesso!")
+                        st.rerun()
+                    elif nome_limpo in st.session_state.db:
+                        st.error("Este atleta já está cadastrado!")
+                    else:
+                        st.error("Informe o nome do atleta.")
 
         if total_alunos > 0:
             st.markdown("### 📋 Atletas Ativos")
@@ -1245,6 +1410,11 @@ if not aluno_atual:
                         st.caption(f"Modalidade: **{MODALIDADES_ICONES.get(mod, mod)}**")
                         n_exercicios = len(dados_al.get('treinos', []))
                         st.markdown(f"<span class='kn-chip-cyan'>{n_exercicios} exercícios cadastrados</span>", unsafe_allow_html=True)
+                        st.write("")
+                        if st.button(f"🏋️ Abrir / Montar Treino", key=f"btn_dash_open_{nome_al}", type="primary", use_container_width=True):
+                            st.session_state["aluno_selecionado"] = nome_al
+                            st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                            st.rerun()
     else:
         st.markdown(
             f"""
@@ -1261,7 +1431,35 @@ if not aluno_atual:
         st.info("Assim que seu treinador liberar sua planilha, seus exercícios e vídeos aparecerão aqui.")
 
 else:
-    # 2. ATLETA SELECIONADO: FOTO DO ATLETA EM CIMA DE TUDO E DADOS DO ATLETA EM BAIXO
+    # 2. ATLETA SELECIONADO: BARRA DE NAVEGAÇÃO SUPERIOR + FOTO DO ATLETA EM CIMA DE TUDO E DADOS DO ATLETA EM BAIXO
+    if eh_admin:
+        with st.container(border=True):
+            c_sel_topo, c_btn_novo, c_btn_todos = st.columns([2.5, 1, 1], vertical_alignment="bottom")
+            with c_sel_topo:
+                opcoes_atletas = alunos_existentes
+                idx_sel = opcoes_atletas.index(aluno_atual) if aluno_atual in opcoes_atletas else 0
+                aluno_topo_escolhido = st.selectbox(
+                    "👤 Atleta em Edição (Troque de Atleta Aqui):",
+                    opcoes_atletas,
+                    index=idx_sel,
+                    key=f"sb_topo_selecao_atleta_{st.session_state.get('sb_aluno_ver', 0)}",
+                    format_func=lambda a: f"⚡ {a} ({MODALIDADES_ICONES.get(st.session_state.db.get(a, {}).get('modalidade'), st.session_state.db.get(a, {}).get('modalidade', 'Esporte'))}) • {len(st.session_state.db.get(a, {}).get('treinos', []))} ex."
+                )
+                if aluno_topo_escolhido != aluno_atual:
+                    st.session_state["aluno_selecionado"] = aluno_topo_escolhido
+                    st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                    st.rerun()
+            with c_btn_novo:
+                if st.button("➕ Novo Atleta", key="btn_topo_novo_atleta", use_container_width=True):
+                    st.session_state["aluno_selecionado"] = None
+                    st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                    st.rerun()
+            with c_btn_todos:
+                if st.button("👥 Ver Todos", key="btn_topo_ver_todos", use_container_width=True):
+                    st.session_state["aluno_selecionado"] = None
+                    st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                    st.rerun()
+
     dados_aluno = st.session_state.db[aluno_atual]
     treinos = dados_aluno.get("treinos", [])
     modalidade = dados_aluno.get("modalidade", "Treinamento")
@@ -1490,14 +1688,214 @@ else:
     # TAB 1: FICHA DE TREINO
     # ==========================================
     with tab_treino:
+        if eh_admin:
+            lista_exercicios_sug = MODALIDADES_EXERCICIOS.get(modalidade, [])
+
+            # --- BARRA SUPERIOR DE SALVAMENTO & STATUS DO TREINO ---
+            with st.container(border=True):
+                col_info_salvar, col_btn_salvar = st.columns([2.5, 1.5], vertical_alignment="center")
+                with col_info_salvar:
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <span style="font-size: 2rem;">⚡</span>
+                            <div>
+                                <h4 style="margin: 0; color: #ffffff;">Plano de Treino • {aluno_atual}</h4>
+                                <span style="font-size: 0.88rem; color: #94a3b8;">
+                                    {len(treinos)} exercício{'s' if len(treinos) != 1 else ''} • {modalidade_formatada} • <strong style="color: #10b981;">Tudo Salvo</strong>
+                                </span>
+                            </div>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                with col_btn_salvar:
+                    if st.button("💾 Salvar Treino no Sistema", type="primary", key=f"btn_salvar_treino_topo_{aluno_atual}", use_container_width=True):
+                        atualizar_db()
+                        notificar_sucesso(f"Treino de {aluno_atual} salvo com sucesso!", "💾")
+                        st.success(f"✅ Treino de {aluno_atual} salvo com sucesso!")
+
+            st.write("")
+
+            # --- PAINEL FÁCIL PARA O TREINADOR ADICIONAR EXERCÍCIOS ---
+            with st.container(border=True):
+                st.markdown(f"#### ➕ Montar Treino de {aluno_atual}")
+                st.caption("Escolha o jeito mais fácil para montar ou adicionar exercícios:")
+
+                aba_rapida, aba_detalhada, aba_copiar = st.tabs([
+                    "🚀 Seleção Rápida em Lote (Mais Fácil)",
+                    "✏️ Adicionar Exercício Detalhado",
+                    "📋 Copiar Treino de Outro Atleta"
+                ])
+
+                # 1. ABA RÁPIDA: SELEÇÃO EM LOTE
+                with aba_rapida:
+                    st.markdown(f"**Marque os exercícios desejados de {modalidade_formatada}:**")
+                    ex_selecionados = st.multiselect(
+                        "Exercícios Recomendados",
+                        lista_exercicios_sug,
+                        key=f"multi_ex_rapidos_{aluno_atual}",
+                        placeholder="Clique para marcar 1 ou mais exercícios...",
+                        help="Você pode marcar vários exercícios de uma só vez e adicioná-los com 1 clique!"
+                    )
+
+                    c_s_rap, c_r_rap = st.columns(2)
+                    with c_s_rap:
+                        series_rap = c_s_rap.number_input("Séries padrão", min_value=1, max_value=30, value=3, step=1, key=f"num_s_rap_{aluno_atual}")
+                    with c_r_rap:
+                        reps_rap = c_r_rap.text_input("Reps ou Tempo padrão", value="10 a 12", key=f"txt_r_rap_{aluno_atual}")
+
+                    c_btn_lote, c_btn_todos = st.columns([1.5, 1])
+                    with c_btn_lote:
+                        if st.button("⚡ Adicionar Exercícios Marcados", type="primary", key=f"btn_add_lote_{aluno_atual}", use_container_width=True):
+                            if not ex_selecionados:
+                                st.warning("Selecione pelo menos um exercício na lista acima para adicionar.")
+                            else:
+                                for ex_nome in ex_selecionados:
+                                    st.session_state.db[aluno_atual].setdefault("treinos", []).append({
+                                        "exercicio": ex_nome,
+                                        "series": int(series_rap),
+                                        "reps": reps_rap.strip() if reps_rap.strip() else "10 a 12",
+                                        "url_video": "",
+                                        "observacoes": ""
+                                    })
+                                atualizar_db()
+                                notificar_sucesso(f"{len(ex_selecionados)} exercícios adicionados e salvos!", "✅")
+                                st.success(f"{len(ex_selecionados)} exercícios adicionados e salvos na ficha de {aluno_atual}!")
+                                st.rerun()
+
+                    with c_btn_todos:
+                        if st.button(f"🌟 Adicionar Todos de {modalidade}", key=f"btn_add_all_{aluno_atual}", use_container_width=True, help="Adiciona todos os exercícios base da modalidade de uma vez só"):
+                            for ex_nome in lista_exercicios_sug:
+                                st.session_state.db[aluno_atual].setdefault("treinos", []).append({
+                                    "exercicio": ex_nome,
+                                    "series": 3,
+                                    "reps": "10 a 12",
+                                    "url_video": "",
+                                    "observacoes": ""
+                                })
+                            atualizar_db()
+                            notificar_sucesso(f"Todos os exercícios de {modalidade} foram adicionados!", "🌟")
+                            st.rerun()
+
+                # 2. ABA DETALHADA: FORMULÁRIO COM VÍDEO E OBSERVAÇÕES
+                with aba_detalhada:
+                    with st.form(f"form_add_treino_detalhado_{aluno_atual}"):
+                        c_ex_sug, c_ex_dig = st.columns([1.2, 1], gap="medium")
+                        with c_ex_sug:
+                            ex_sugerido = st.selectbox(
+                                "Exercício Sugerido da Modalidade",
+                                lista_exercicios_sug + ["+ Outro exercício personalizado"],
+                                key=f"main_sel_ex_{aluno_atual}"
+                            )
+                        with c_ex_dig:
+                            ex_personalizado = st.text_input(
+                                "Ou Digite Outro Exercício",
+                                placeholder="Deixe em branco para usar o sugerido",
+                                key=f"main_txt_ex_{aluno_atual}"
+                            )
+
+                        c_set, c_rep = st.columns(2, gap="medium")
+                        with c_set:
+                            num_series = st.number_input(
+                                "Número de Séries",
+                                min_value=1,
+                                max_value=30,
+                                value=3,
+                                step=1,
+                                key=f"main_series_{aluno_atual}"
+                            )
+                        with c_rep:
+                            txt_reps = st.text_input(
+                                "Volume / Repetições ou Tempo",
+                                value="10 a 12",
+                                placeholder="Ex: 10 a 12 reps, 45 seg, até a falha",
+                                key=f"main_reps_{aluno_atual}"
+                            )
+
+                        txt_video = st.text_input(
+                            "URL do Vídeo Demonstrativo (YouTube)",
+                            placeholder="https://www.youtube.com/watch?v=...",
+                            key=f"main_video_{aluno_atual}"
+                        )
+                        txt_obs = st.text_area(
+                            "Orientações Técnicas / Dicas do Treinador",
+                            placeholder="Ex: Manter tronco firme, foco na postura e na velocidade de reação...",
+                            key=f"main_obs_{aluno_atual}"
+                        )
+
+                        btn_salvar_treino_det = st.form_submit_button(
+                            "➕ Adicionar e Salvar Exercício",
+                            type="primary",
+                            use_container_width=True
+                        )
+
+                        if btn_salvar_treino_det:
+                            nome_exercicio_final = ex_personalizado.strip() if ex_personalizado.strip() else (
+                                ex_sugerido if ex_sugerido != "+ Outro exercício personalizado" else ""
+                            )
+                            if not nome_exercicio_final:
+                                st.error("Informe o nome do exercício para adicionar.")
+                            else:
+                                novo_treino = {
+                                    "exercicio": nome_exercicio_final,
+                                    "series": int(num_series),
+                                    "reps": txt_reps.strip() if txt_reps.strip() else "10 a 12",
+                                    "url_video": txt_video.strip(),
+                                    "observacoes": txt_obs.strip()
+                                }
+                                st.session_state.db[aluno_atual].setdefault("treinos", []).append(novo_treino)
+                                atualizar_db()
+                                notificar_sucesso(f"Exercício '{nome_exercicio_final}' salvo!", "💾")
+                                st.success(f"Exercício '{nome_exercicio_final}' adicionado e salvo com sucesso!")
+                                st.rerun()
+
+                # 3. ABA COPIAR TREINO DE OUTRO ATLETA
+                with aba_copiar:
+                    outros_atletas = [
+                        a for a in alunos_existentes 
+                        if a != aluno_atual and len(st.session_state.db.get(a, {}).get("treinos", [])) > 0
+                    ]
+                    if not outros_atletas:
+                        st.info("Nenhum outro atleta possui exercícios cadastrados para copiar no momento.")
+                    else:
+                        st.markdown("**Copie rapidamente o treino de outro atleta:**")
+                        c_atleta_orig, c_modo_orig = st.columns(2)
+                        with c_atleta_orig:
+                            atleta_origem = st.selectbox(
+                                "Copiar treino de:",
+                                outros_atletas,
+                                format_func=lambda a: f"⚡ {a} ({len(st.session_state.db[a].get('treinos', []))} exercícios)",
+                                key=f"sb_copiar_origem_{aluno_atual}"
+                            )
+                        with c_modo_orig:
+                            modo_copia = st.radio(
+                                "Opção de Cópia:",
+                                ["Adicionar aos já existentes", "Substituir treino atual"],
+                                key=f"rd_modo_copia_{aluno_atual}"
+                            )
+
+                        if st.button("📋 Confirmar e Copiar Treino", type="primary", key=f"btn_copiar_treino_{aluno_atual}", use_container_width=True):
+                            treinos_copiados = [dict(t) for t in st.session_state.db[atleta_origem].get("treinos", [])]
+                            if modo_copia == "Substituir treino atual":
+                                st.session_state.db[aluno_atual]["treinos"] = treinos_copiados
+                            else:
+                                st.session_state.db[aluno_atual].setdefault("treinos", []).extend(treinos_copiados)
+                            atualizar_db()
+                            notificar_sucesso(f"Treino de {atleta_origem} copiado para {aluno_atual}!", "📋")
+                            st.success(f"Foram copiados {len(treinos_copiados)} exercícios de {atleta_origem} para {aluno_atual} com sucesso!")
+                            st.rerun()
+
+            st.write("")
+
         if not treinos:
             st.markdown(
-                """
+                f"""
                 <div class="kn-empty-video" style="padding: 3rem 1.5rem;">
                     <span style="font-size: 2.8rem;">📋</span>
                     <h3 style="margin: 0; color: #ffffff;">Ficha de treino vazia</h3>
                     <p style="color: #94a3b8; margin: 0; max-width: 480px;">
-                        Nenhum exercício cadastrado ainda. Adicione exercícios pelo menu lateral para montar a rotina.
+                        {'Utilize o painel acima para adicionar exercícios rapidamente à ficha de ' + aluno_atual + '.' if eh_admin else 'Nenhum exercício cadastrado ainda. Seu treinador em breve liberará sua rotina.'}
                     </p>
                 </div>
                 """,
@@ -1505,9 +1903,9 @@ else:
             )
         else:
             for i, treino in enumerate(treinos):
-                nome_exercicio = treino['exercicio']
-                series = treino['series']
-                reps = treino['reps']
+                nome_exercicio = treino.get('exercicio', 'Exercício')
+                series = treino.get('series', 3)
+                reps = treino.get('reps', '10 a 12')
                 obs = treino.get('observacoes', '').strip()
                 url_video = treino.get('url_video', '').strip()
 
@@ -1545,10 +1943,58 @@ else:
 
                         if eh_admin:
                             st.write("")
-                            if st.button("🗑️ Remover Exercício", key=f"del_{aluno_atual}_{i}", help="Excluir este exercício do plano"):
-                                st.session_state.db[aluno_atual]["treinos"].pop(i)
-                                atualizar_db()
-                                st.rerun()
+                            # Barra de ações rápidas: Mover Cima, Mover Baixo, Duplicar, Editar, Excluir
+                            cols_acoes = st.columns([0.8, 0.8, 1.2, 1, 1])
+                            with cols_acoes[0]:
+                                if st.button("⬆️", key=f"up_{aluno_atual}_{i}", help="Mover exercício para cima", use_container_width=True, disabled=(i == 0)):
+                                    st.session_state.db[aluno_atual]["treinos"][i], st.session_state.db[aluno_atual]["treinos"][i-1] = (
+                                        st.session_state.db[aluno_atual]["treinos"][i-1], st.session_state.db[aluno_atual]["treinos"][i]
+                                    )
+                                    atualizar_db()
+                                    st.rerun()
+                            with cols_acoes[1]:
+                                if st.button("⬇️", key=f"down_{aluno_atual}_{i}", help="Mover exercício para baixo", use_container_width=True, disabled=(i == len(treinos) - 1)):
+                                    st.session_state.db[aluno_atual]["treinos"][i], st.session_state.db[aluno_atual]["treinos"][i+1] = (
+                                        st.session_state.db[aluno_atual]["treinos"][i+1], st.session_state.db[aluno_atual]["treinos"][i]
+                                    )
+                                    atualizar_db()
+                                    st.rerun()
+                            with cols_acoes[2]:
+                                if st.button("📋 Duplicar", key=f"dup_{aluno_atual}_{i}", help="Duplicar este exercício", use_container_width=True):
+                                    copia_ex = dict(treino)
+                                    st.session_state.db[aluno_atual]["treinos"].insert(i + 1, copia_ex)
+                                    atualizar_db()
+                                    notificar_sucesso("Exercício duplicado e salvo!", "📋")
+                                    st.rerun()
+                            with cols_acoes[3]:
+                                edit_open = st.checkbox("✏️ Editar", key=f"check_edit_{aluno_atual}_{i}")
+                            with cols_acoes[4]:
+                                if st.button("🗑️ Remover", key=f"del_{aluno_atual}_{i}", help="Excluir este exercício do plano", use_container_width=True):
+                                    st.session_state.db[aluno_atual]["treinos"].pop(i)
+                                    atualizar_db()
+                                    notificar_sucesso("Exercício removido!", "🗑️")
+                                    st.rerun()
+
+                            if edit_open:
+                                with st.form(f"form_quick_edit_{aluno_atual}_{i}"):
+                                    ed_nome = st.text_input("Nome do Exercício", value=nome_exercicio, key=f"ed_nome_{aluno_atual}_{i}")
+                                    c_es, c_er = st.columns(2)
+                                    ed_series = c_es.number_input("Séries", min_value=1, max_value=30, value=int(series), step=1, key=f"ed_s_{aluno_atual}_{i}")
+                                    ed_reps = c_er.text_input("Reps/Tempo", value=str(reps), key=f"ed_r_{aluno_atual}_{i}")
+                                    ed_video = st.text_input("URL do Vídeo", value=url_video, key=f"ed_v_{aluno_atual}_{i}")
+                                    ed_obs = st.text_area("Orientações", value=obs, key=f"ed_o_{aluno_atual}_{i}")
+                                    if st.form_submit_button("Salvar Alterações", type="primary", use_container_width=True):
+                                        st.session_state.db[aluno_atual]["treinos"][i] = {
+                                            "exercicio": ed_nome.strip() if ed_nome.strip() else nome_exercicio,
+                                            "series": int(ed_series),
+                                            "reps": ed_reps.strip(),
+                                            "url_video": ed_video.strip(),
+                                            "observacoes": ed_obs.strip()
+                                        }
+                                        atualizar_db()
+                                        notificar_sucesso("Exercício atualizado e salvo!", "💾")
+                                        st.success("Exercício atualizado com sucesso!")
+                                        st.rerun()
 
                     with col_midia:
                         if url_video:
@@ -1567,6 +2013,34 @@ else:
                                 """,
                                 unsafe_allow_html=True
                             )
+
+            if eh_admin and treinos:
+                st.write("")
+                with st.container(border=True):
+                    c_salvar_fim, c_limpar_fim = st.columns([3, 1], vertical_alignment="center")
+                    with c_salvar_fim:
+                        if st.button("💾 Salvar Treino Completo", type="primary", key=f"btn_salvar_treino_fim_{aluno_atual}", use_container_width=True):
+                            atualizar_db()
+                            notificar_sucesso(f"Treino de {aluno_atual} salvo com sucesso!", "💾")
+                            st.success(f"✅ Treino de {aluno_atual} com {len(treinos)} exercícios está salvo no banco de dados!")
+                    with c_limpar_fim:
+                        if st.button("🗑️ Limpar Todos", key=f"btn_limpar_treino_{aluno_atual}", help="Apagar todos os exercícios deste treino", use_container_width=True):
+                            st.session_state[f"confirm_limpar_{aluno_atual}"] = True
+
+                    if st.session_state.get(f"confirm_limpar_{aluno_atual}"):
+                        st.warning(f"Tem certeza que deseja apagar todos os {len(treinos)} exercícios de {aluno_atual}?")
+                        c_conf_sim, c_conf_nao = st.columns(2)
+                        with c_conf_sim:
+                            if st.button("Sim, apagar todos", key=f"btn_conf_limpar_sim_{aluno_atual}", type="primary", use_container_width=True):
+                                st.session_state.db[aluno_atual]["treinos"] = []
+                                atualizar_db()
+                                st.session_state.pop(f"confirm_limpar_{aluno_atual}", None)
+                                notificar_sucesso("Treino limpo com sucesso!", "🗑️")
+                                st.rerun()
+                        with c_conf_nao:
+                            if st.button("Cancelar", key=f"btn_conf_limpar_nao_{aluno_atual}", use_container_width=True):
+                                st.session_state.pop(f"confirm_limpar_{aluno_atual}", None)
+                                st.rerun()
 
     # ==========================================
     # TAB 2: FREQUÊNCIA (APENAS ADMINISTRADOR)
