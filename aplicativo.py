@@ -1,4 +1,6 @@
 import streamlit as st
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
@@ -44,51 +46,61 @@ MODALIDADES_EXERCICIOS = {
     "Basquete": ["Arremesso (Jump)", "Lance Livre", "Bandeja", "Drible", "Passe de peito", "Passe picado", "Rebote"]
 }
 
-# Carrega logo em base64 se disponível
-LOGO_BASE64 = None
-if os.path.isfile(CAMINHO_LOGO):
-    try:
-        with open(CAMINHO_LOGO, "rb") as arquivo_logo:
-            LOGO_BASE64 = base64.b64encode(arquivo_logo.read()).decode("ascii")
-    except Exception:
-        LOGO_BASE64 = None
-
 @st.cache_data(show_spinner=False)
-def carregar_fundo_logo_base64():
-    if not os.path.isfile(CAMINHO_LOGO):
+def carregar_imagem_base64(caminho, max_dim=(1920, 1920), qualidade=85):
+    if not caminho or not os.path.isfile(caminho):
         return None
     try:
-        imagem = Image.open(CAMINHO_LOGO).convert("RGB")
-        imagem.thumbnail((800, 800), Image.Resampling.LANCZOS)
+        imagem = Image.open(caminho).convert("RGB")
+        imagem.thumbnail(max_dim, Image.Resampling.LANCZOS)
         buffer = BytesIO()
-        imagem.save(buffer, format="JPEG", quality=75, optimize=True)
+        imagem.save(buffer, format="JPEG", quality=qualidade, optimize=True)
         return base64.b64encode(buffer.getvalue()).decode("ascii")
     except Exception:
         return None
 
-FUNDO_LOGO_B64 = carregar_fundo_logo_base64()
+def obter_caminho_foto_login():
+    candidatos = [
+        "foto_login.jpg",
+        "foto_login.png",
+        "foto_login.jpeg",
+        "fundo_login.jpg",
+        "fundo_login.png",
+        "fundo_login.jpeg",
+        "login_bg.jpg",
+        "login_bg.png",
+        "1000370127.jpg",
+    ]
+    for nome in candidatos:
+        caminho = os.path.join(DIRETORIO_APP, nome)
+        if os.path.isfile(caminho):
+            return caminho
+    return CAMINHO_LOGO if os.path.isfile(CAMINHO_LOGO) else None
 
-# Injeta CSS de fundo com o logo do programa como marca d'água / wallpaper
-if FUNDO_LOGO_B64:
-    st.html(
-        f"""
-        <style>
-        [data-testid="stAppViewContainer"] {{
-            background-color: #070b13 !important;
-            background-image: 
-                radial-gradient(circle at 50% 50%, rgba(10, 15, 26, 0.65) 0%, rgba(7, 10, 18, 0.82) 65%, rgba(5, 7, 13, 0.94) 100%),
-                url('data:image/jpeg;base64,{FUNDO_LOGO_B64}') !important;
-            background-position: center center, center center !important;
-            background-repeat: no-repeat, no-repeat !important;
-            background-attachment: fixed, fixed !important;
-            background-size: cover, min(750px, 85vmin) !important;
-        }}
-        section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
-            background: transparent !important;
-        }}
-        </style>
-        """
-    )
+LOGO_BASE64 = carregar_imagem_base64(CAMINHO_LOGO, (512, 512), 85)
+FUNDO_LOGO_B64 = carregar_imagem_base64(CAMINHO_LOGO, (800, 800), 75)
+
+def injetar_fundo_dashboard():
+    if FUNDO_LOGO_B64:
+        st.html(
+            f"""
+            <style>
+            [data-testid="stAppViewContainer"] {{
+                background-color: #070b13 !important;
+                background-image: 
+                    radial-gradient(circle at 50% 50%, rgba(10, 15, 26, 0.65) 0%, rgba(7, 10, 18, 0.82) 65%, rgba(5, 7, 13, 0.94) 100%),
+                    url('data:image/jpeg;base64,{FUNDO_LOGO_B64}') !important;
+                background-position: center center, center center !important;
+                background-repeat: no-repeat, no-repeat !important;
+                background-attachment: fixed, fixed !important;
+                background-size: cover, min(750px, 85vmin) !important;
+            }}
+            section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
+                background: transparent !important;
+            }}
+            </style>
+            """
+        )
 
 # ==========================================
 # ESTILIZAÇÃO CSS GLOBAL (CAMPOS E MENUS COM LETRA PRETA)
@@ -99,13 +111,14 @@ st.markdown(
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Outfit:wght@600;700;800;900&display=swap');
 
     :root {
-        --kn-bg-dark: #0a0e17;
-        --kn-card-bg: rgba(21, 29, 47, 0.88);
+        --kn-bg-dark: #070a10;
+        --kn-card-bg: rgba(17, 24, 39, 0.92);
         --kn-border: rgba(255, 255, 255, 0.08);
+        --kn-border-accent: rgba(245, 196, 0, 0.25);
         --kn-accent: #f5c400;
         --kn-cyan: #38bdf8;
         --kn-text-title: #ffffff;
-        --kn-text-main: #e2e8f0;
+        --kn-text-main: #f1f5f9;
         --kn-text-muted: #94a3b8;
     }
 
@@ -120,9 +133,9 @@ st.markdown(
         color: var(--kn-text-title) !important;
     }
 
-    /* Fundo Studio / High-Performance Atmosphere de contingência */
+    /* Fundo Studio / High-Performance Atmosphere */
     [data-testid="stAppViewContainer"] {
-        background: radial-gradient(circle at 50% -10%, #18243c 0%, #0d1320 65%, #080c14 100%) fixed;
+        background: radial-gradient(circle at 50% -10%, #172338 0%, #0a0e17 65%, #05070c 100%) fixed;
     }
 
     [data-testid="stHeader"] {
@@ -132,14 +145,14 @@ st.markdown(
     [data-testid="stAppViewContainer"] main .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 3.5rem !important;
-        max-width: 1240px;
+        max-width: 1260px;
     }
 
     /* Barra Lateral */
     section[data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #0b0f18 0%, #111827 50%, #0b0f19 100%) !important;
+        background: linear-gradient(180deg, #090d15 0%, #0f172a 50%, #090d16 100%) !important;
         border-right: 1px solid var(--kn-border) !important;
-        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.45);
     }
 
     section[data-testid="stSidebar"] h1,
@@ -160,7 +173,7 @@ st.markdown(
     }
 
     /* ============================================================
-       TODOS OS MENUS E CAMPOS DE DIGITAÇÃO: TEXTO EM COR PRETO
+       MENUS E CAMPOS DE DIGITAÇÃO: TEXTO EM COR PRETO E FUNDO BRANCO
        ============================================================ */
     input, textarea {
         color: #000000 !important;
@@ -175,24 +188,23 @@ st.markdown(
     div[data-baseweb="textarea"] {
         background-color: #ffffff !important;
         border: 1.5px solid #cbd5e1 !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
+        transition: all 0.2s ease !important;
     }
 
     div[data-baseweb="input"]:focus-within,
     div[data-baseweb="select"] > div:focus-within,
     div[data-baseweb="textarea"]:focus-within {
         border-color: #f5c400 !important;
-        box-shadow: 0 0 0 3px rgba(245, 196, 0, 0.3) !important;
+        box-shadow: 0 0 0 3px rgba(245, 196, 0, 0.35) !important;
     }
 
-    /* Textos selecionados dentro do Selectbox em PRETO */
     div[data-baseweb="select"] span,
     div[data-baseweb="select"] div {
         color: #000000 !important;
         font-weight: 600;
     }
 
-    /* Menus suspensos / Dropdowns com fundo branco e letras PRETAS */
     div[data-baseweb="popover"],
     div[data-baseweb="menu"],
     ul[role="listbox"],
@@ -220,7 +232,6 @@ st.markdown(
         font-weight: 400 !important;
     }
 
-    /* Tags de MultiSelect com fundo claro e texto PRETO */
     div[data-baseweb="tag"] {
         background-color: #fef08a !important;
         border: 1px solid #facc15 !important;
@@ -240,25 +251,31 @@ st.markdown(
         border-radius: 14px !important;
     }
 
-    /* Cards e Containers */
+    /* Cards e Containers Modernos com Glassmorphism */
     [data-testid="stVerticalBlockBorderWrapper"] {
-        background: var(--kn-card-bg) !important;
-        border: 1px solid var(--kn-border) !important;
-        border-radius: 18px !important;
-        box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32) !important;
-        backdrop-filter: blur(10px) !important;
-        -webkit-backdrop-filter: blur(10px) !important;
+        background: linear-gradient(145deg, rgba(18, 25, 41, 0.94) 0%, rgba(11, 16, 26, 0.96) 100%) !important;
+        border: 1px solid var(--kn-border-accent) !important;
+        border-radius: 20px !important;
+        box-shadow: 0 10px 32px rgba(0, 0, 0, 0.42) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease !important;
+    }
+
+    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+        border-color: rgba(245, 196, 0, 0.38) !important;
+        box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), 0 0 20px rgba(245, 196, 0, 0.08) !important;
     }
 
     /* Métricas / KPI Cards */
     [data-testid="stMetric"] {
-        background: var(--kn-card-bg) !important;
-        border: 1px solid var(--kn-border) !important;
-        border-radius: 16px !important;
-        padding: 1.15rem 1.3rem !important;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.28) !important;
-        backdrop-filter: blur(10px) !important;
-        -webkit-backdrop-filter: blur(10px) !important;
+        background: linear-gradient(135deg, rgba(20, 28, 46, 0.92) 0%, rgba(13, 18, 30, 0.95) 100%) !important;
+        border: 1px solid rgba(245, 196, 0, 0.22) !important;
+        border-radius: 18px !important;
+        padding: 1.2rem 1.3rem !important;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.35) !important;
+        backdrop-filter: blur(12px) !important;
+        -webkit-backdrop-filter: blur(12px) !important;
         position: relative;
         overflow: hidden;
     }
@@ -276,62 +293,63 @@ st.markdown(
     [data-testid="stMetricValue"] {
         color: #ffffff !important;
         font-family: 'Outfit', sans-serif !important;
-        font-size: 1.85rem !important;
+        font-size: 1.9rem !important;
         font-weight: 800 !important;
         letter-spacing: -0.02em !important;
     }
 
     [data-testid="stMetricLabel"] {
         color: var(--kn-text-muted) !important;
-        font-size: 0.85rem !important;
+        font-size: 0.82rem !important;
         text-transform: uppercase !important;
-        letter-spacing: 0.05em !important;
-        font-weight: 600 !important;
+        letter-spacing: 0.06em !important;
+        font-weight: 700 !important;
     }
 
     /* Abas de Navegação */
     [data-testid="stTabs"] [role="tablist"] {
         gap: 0.6rem !important;
         border-bottom: 1px solid var(--kn-border) !important;
-        padding-bottom: 0.4rem !important;
+        padding-bottom: 0.5rem !important;
         margin-bottom: 1.5rem !important;
     }
 
     [data-testid="stTabs"] button[role="tab"] {
-        background: rgba(255, 255, 255, 0.03) !important;
-        border: 1px solid transparent !important;
-        border-radius: 12px !important;
-        padding: 0.55rem 1.3rem !important;
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        border-radius: 14px !important;
+        padding: 0.6rem 1.35rem !important;
         color: var(--kn-text-muted) !important;
-        font-weight: 600 !important;
+        font-weight: 700 !important;
         font-size: 0.95rem !important;
         transition: all 0.2s ease !important;
     }
 
     [data-testid="stTabs"] button[role="tab"]:hover {
-        background: rgba(255, 255, 255, 0.07) !important;
+        background: rgba(245, 196, 0, 0.1) !important;
+        border-color: rgba(245, 196, 0, 0.25) !important;
         color: #ffffff !important;
     }
 
     [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
-        background: var(--kn-card-bg) !important;
-        border: 1px solid rgba(245, 196, 0, 0.4) !important;
+        background: linear-gradient(135deg, rgba(245, 196, 0, 0.18) 0%, rgba(234, 179, 8, 0.10) 100%) !important;
+        border: 1px solid var(--kn-accent) !important;
         color: var(--kn-accent) !important;
-        box-shadow: 0 4px 16px rgba(245, 196, 0, 0.18) !important;
+        box-shadow: 0 4px 18px rgba(245, 196, 0, 0.22) !important;
     }
 
     /* Expanders */
     [data-testid="stExpander"] {
         background: var(--kn-card-bg) !important;
-        border: 1px solid var(--kn-border) !important;
-        border-radius: 16px !important;
-        box-shadow: 0 4px 18px rgba(0, 0, 0, 0.22) !important;
-        margin-bottom: 0.9rem !important;
+        border: 1px solid var(--kn-border-accent) !important;
+        border-radius: 18px !important;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28) !important;
+        margin-bottom: 1rem !important;
         overflow: hidden !important;
     }
 
     [data-testid="stExpander"] details summary {
-        padding: 0.95rem 1.25rem !important;
+        padding: 1rem 1.3rem !important;
         font-weight: 700 !important;
         font-size: 1.05rem !important;
         color: #ffffff !important;
@@ -342,37 +360,51 @@ st.markdown(
         color: var(--kn-accent) !important;
     }
 
-    /* Botões */
+    /* Botões Modernos com Efeito Glow */
     div[data-testid="stButton"] > button {
-        border-radius: 12px !important;
+        border-radius: 14px !important;
         font-weight: 700 !important;
-        padding: 0.6rem 1.4rem !important;
+        padding: 0.65rem 1.4rem !important;
         transition: all 0.2s ease !important;
+        min-height: 42px !important;
     }
 
     div[data-testid="stButton"] > button[kind="primary"] {
         background: linear-gradient(135deg, #f5c400 0%, #eab308 100%) !important;
         border: none !important;
-        color: #0b0f19 !important;
-        box-shadow: 0 4px 18px rgba(245, 196, 0, 0.28) !important;
+        color: #070a10 !important;
+        box-shadow: 0 4px 20px rgba(245, 196, 0, 0.35) !important;
     }
 
     div[data-testid="stButton"] > button[kind="primary"]:hover {
         transform: translateY(-2px) !important;
-        box-shadow: 0 6px 24px rgba(245, 196, 0, 0.42) !important;
+        box-shadow: 0 8px 28px rgba(245, 196, 0, 0.5) !important;
     }
 
     div[data-testid="stButton"] > button[kind="secondary"] {
         background: rgba(255, 255, 255, 0.05) !important;
-        border: 1px solid var(--kn-border) !important;
-        color: #e2e8f0 !important;
+        border: 1px solid var(--kn-border-accent) !important;
+        color: #f1f5f9 !important;
+    }
+
+    div[data-testid="stButton"] > button[kind="secondary"]:hover {
+        background: rgba(245, 196, 0, 0.1) !important;
+        border-color: var(--kn-accent) !important;
+    }
+
+    /* Vídeos e Frames */
+    iframe, video, [data-testid="stVideo"] {
+        border-radius: 16px !important;
+        border: 1px solid var(--kn-border-accent) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45) !important;
+        width: 100% !important;
     }
 
     /* Estilização da Foto Circular do Atleta via st.image */
     .kn-photo-frame img {
         border-radius: 50% !important;
         border: 4px solid #f5c400 !important;
-        box-shadow: 0 8px 28px rgba(245, 196, 0, 0.4) !important;
+        box-shadow: 0 10px 30px rgba(245, 196, 0, 0.45) !important;
         margin: 0 auto !important;
         display: block !important;
         object-fit: cover !important;
@@ -380,16 +412,16 @@ st.markdown(
     }
 
     .kn-athlete-placeholder {
-        width: 150px;
-        height: 150px;
+        width: 140px;
+        height: 140px;
         border-radius: 50%;
-        background: #162032;
+        background: #131a29;
         border: 3.5px dashed rgba(245, 196, 0, 0.55);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 4rem;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        font-size: 3.8rem;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
         margin: 0 auto 0.8rem;
     }
 
@@ -397,26 +429,28 @@ st.markdown(
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 5px 14px;
+        padding: 6px 16px;
         border-radius: 20px;
         font-size: 0.85rem;
         font-weight: 700;
         background: rgba(245, 196, 0, 0.12);
         color: #f5c400;
-        border: 1px solid rgba(245, 196, 0, 0.28);
+        border: 1px solid rgba(245, 196, 0, 0.32);
+        box-shadow: 0 2px 10px rgba(245, 196, 0, 0.12);
     }
 
     .kn-chip-cyan {
         display: inline-flex;
         align-items: center;
         gap: 6px;
-        padding: 5px 14px;
+        padding: 6px 16px;
         border-radius: 20px;
         font-size: 0.85rem;
         font-weight: 700;
         background: rgba(56, 189, 248, 0.12);
         color: #38bdf8;
-        border: 1px solid rgba(56, 189, 248, 0.28);
+        border: 1px solid rgba(56, 189, 248, 0.32);
+        box-shadow: 0 2px 10px rgba(56, 189, 248, 0.12);
     }
 
     .kn-data-grid {
@@ -437,6 +471,12 @@ st.markdown(
         border-radius: 14px;
         padding: 10px 12px;
         text-align: center;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .kn-data-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(245, 196, 0, 0.3);
     }
 
     .kn-data-label {
@@ -459,56 +499,118 @@ st.markdown(
         display: flex;
         flex-direction: column;
         background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px;
-        padding: 8px 14px;
-        min-width: 100px;
+        border: 1px solid var(--kn-border-accent);
+        border-radius: 14px;
+        padding: 10px 16px;
+        min-width: 110px;
     }
 
     .kn-coach-note {
-        background: rgba(245, 196, 0, 0.06);
-        border-left: 3px solid #f5c400;
-        padding: 10px 14px;
-        border-radius: 0 8px 8px 0;
-        margin-top: 10px;
-        color: #e2e8f0;
-        font-size: 0.92rem;
-        line-height: 1.45;
+        background: rgba(245, 196, 0, 0.07);
+        border-left: 4px solid #f5c400;
+        padding: 12px 16px;
+        border-radius: 0 12px 12px 0;
+        margin-top: 12px;
+        color: #f1f5f9;
+        font-size: 0.95rem;
+        line-height: 1.5;
     }
 
     .kn-sidebar-user {
         background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 14px;
-        padding: 12px 14px;
-        margin-bottom: 12px;
+        border: 1px solid var(--kn-border-accent);
+        border-radius: 16px;
+        padding: 14px 16px;
+        margin-bottom: 14px;
         display: flex;
         align-items: center;
         gap: 12px;
     }
 
     .kn-success-card {
-        background: rgba(16, 185, 129, 0.08);
-        border: 1px solid rgba(16, 185, 129, 0.25);
-        border-radius: 16px;
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        border-radius: 18px;
         padding: 1.5rem;
         display: flex;
         align-items: center;
         gap: 16px;
-        margin-top: 12px;
+        margin-top: 14px;
     }
 
     .kn-empty-video {
         background: rgba(255, 255, 255, 0.02);
-        border: 1px dashed rgba(255, 255, 255, 0.12);
-        border-radius: 14px;
-        padding: 2.2rem 1.5rem;
+        border: 1px dashed rgba(255, 255, 255, 0.15);
+        border-radius: 16px;
+        padding: 2.5rem 1.5rem;
         text-align: center;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: 8px;
+        gap: 10px;
+    }
+
+    /* ============================================================
+       OTIMIZAÇÕES RESPONSIVAS PARA CELULAR (SMARTPHONES E TABLETS)
+       ============================================================ */
+    @media (max-width: 768px) {
+        [data-testid="stAppViewContainer"] main .block-container {
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
+            padding-top: 1rem !important;
+            padding-bottom: 2.5rem !important;
+        }
+
+        h1 {
+            font-size: 1.8rem !important;
+        }
+        h2 {
+            font-size: 1.45rem !important;
+        }
+        h3 {
+            font-size: 1.2rem !important;
+        }
+
+        .kn-data-grid {
+            gap: 8px !important;
+        }
+
+        .kn-data-card {
+            flex: 1 1 45% !important;
+            max-width: 48% !important;
+            padding: 8px 10px !important;
+        }
+
+        .kn-data-value {
+            font-size: 1.15rem !important;
+        }
+
+        .kn-photo-frame img {
+            width: 125px !important;
+            height: 125px !important;
+        }
+
+        .kn-athlete-placeholder {
+            width: 120px !important;
+            height: 120px !important;
+            font-size: 3rem !important;
+        }
+
+        div[data-testid="stButton"] > button {
+            min-height: 44px !important;
+            padding: 0.55rem 0.9rem !important;
+            font-size: 0.88rem !important;
+        }
+
+        [data-testid="stMetricValue"] {
+            font-size: 1.5rem !important;
+        }
+
+        [data-testid="stTabs"] button[role="tab"] {
+            padding: 0.5rem 0.9rem !important;
+            font-size: 0.88rem !important;
+        }
     }
     </style>
     """,
@@ -520,18 +622,41 @@ st.markdown(
 # ==========================================
 @st.cache_resource(show_spinner=False)
 def cliente_firestore():
-    from google.cloud import firestore
-    return firestore.Client()
+    try:
+        from google.cloud import firestore
+        # 1. Verifica se credenciais foram fornecidas via st.secrets (Streamlit Cloud)
+        if hasattr(st, "secrets"):
+            for chave in ["gcp_service_account", "firebase", "firestore", "google_credentials"]:
+                if chave in st.secrets:
+                    from google.oauth2 import service_account
+                    info = dict(st.secrets[chave])
+                    creds = service_account.Credentials.from_service_account_info(info)
+                    return firestore.Client(credentials=creds)
+        # 2. Verifica se arquivo local de credenciais do Firebase existe
+        caminho_cred = os.path.join(DIRETORIO_APP, "kwborachoque-313e3-firebase-adminsdk-fbsvc-8b0fbe3d51.json")
+        if os.path.isfile(caminho_cred):
+            from google.oauth2 import service_account
+            creds = service_account.Credentials.from_service_account_file(caminho_cred)
+            return firestore.Client(credentials=creds)
+        # 3. Tentativa padrão de client do ambiente
+        return firestore.Client()
+    except Exception:
+        return None
 
 def carregar_dados(usuario):
     if USAR_FIRESTORE:
-        alunos = {}
-        colecao = cliente_firestore().collection("contas").document(usuario).collection("alunos")
-        for documento in colecao.stream():
-            registro = documento.to_dict()
-            nome = registro.pop("nome", documento.id)
-            alunos[nome] = registro
-        return alunos
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                alunos = {}
+                colecao = cli.collection("contas").document(usuario).collection("alunos")
+                for documento in colecao.stream():
+                    registro = documento.to_dict()
+                    nome = registro.pop("nome", documento.id)
+                    alunos[nome] = registro
+                return alunos
+            except Exception:
+                pass
 
     if os.path.exists(ARQUIVO_DADOS):
         with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
@@ -556,10 +681,15 @@ def salvar_arquivo_dados(dados):
 
 def salvar_usuarios(usuarios):
     if USAR_FIRESTORE:
-        colecao = cliente_firestore().collection("usuarios")
-        for nome, registro in usuarios.items():
-            colecao.document(nome).set(registro)
-        return
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                colecao = cli.collection("usuarios")
+                for nome, registro in usuarios.items():
+                    colecao.document(nome).set(registro)
+                return
+            except Exception:
+                pass
 
     with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as arquivo:
         json.dump(usuarios, arquivo, indent=4, ensure_ascii=False)
@@ -575,20 +705,25 @@ def salvar_dados(dados_usuario, usuario):
         raise PermissionError("Somente o administrador pode alterar os treinos.")
 
     if USAR_FIRESTORE:
-        colecao = cliente_firestore().collection("contas").document(usuario).collection("alunos")
-        documentos_existentes = {
-            documento.id: documento
-            for documento in colecao.stream()
-        }
-        nomes_salvos = set()
-        for nome, dados_aluno in dados_usuario.items():
-            identificador = hashlib.sha256(nome.encode("utf-8")).hexdigest()
-            colecao.document(identificador).set({"nome": nome, **dados_aluno})
-            nomes_salvos.add(identificador)
-        for identificador, documento in documentos_existentes.items():
-            if identificador not in nomes_salvos:
-                documento.reference.delete()
-        return
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                colecao = cli.collection("contas").document(usuario).collection("alunos")
+                documentos_existentes = {
+                    documento.id: documento
+                    for documento in colecao.stream()
+                }
+                nomes_salvos = set()
+                for nome, dados_aluno in dados_usuario.items():
+                    identificador = hashlib.sha256(nome.encode("utf-8")).hexdigest()
+                    colecao.document(identificador).set({"nome": nome, **dados_aluno})
+                    nomes_salvos.add(identificador)
+                for identificador, documento in documentos_existentes.items():
+                    if identificador not in nomes_salvos:
+                        documento.reference.delete()
+                return
+            except Exception:
+                pass
 
     if os.path.exists(ARQUIVO_DADOS):
         with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
@@ -608,11 +743,17 @@ def salvar_dados(dados_usuario, usuario):
 
 def carregar_usuarios():
     if USAR_FIRESTORE:
-        usuarios = {
-            documento.id: documento.to_dict()
-            for documento in cliente_firestore().collection("usuarios").stream()
-        }
-        return usuarios
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                usuarios = {
+                    documento.id: documento.to_dict()
+                    for documento in cli.collection("usuarios").stream()
+                }
+                if usuarios:
+                    return usuarios
+            except Exception:
+                pass
 
     if os.path.exists(ARQUIVO_USUARIOS):
         with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as arquivo:
@@ -674,6 +815,54 @@ def validar_token_sessao(token, usuarios_dict):
     except Exception:
         return None
     return None
+
+def definir_sessao_url(token):
+    try:
+        if hasattr(st, "query_params"):
+            st.query_params["session"] = token
+        elif hasattr(st, "experimental_set_query_params"):
+            st.experimental_set_query_params(session=token)
+    except Exception:
+        pass
+
+def obter_sessao_url():
+    try:
+        if hasattr(st, "query_params"):
+            return st.query_params.get("session") or st.query_params.get("auth")
+        elif hasattr(st, "experimental_get_query_params"):
+            params = st.experimental_get_query_params()
+            res = params.get("session") or params.get("auth")
+            if res and isinstance(res, list):
+                return res[0]
+            return res
+    except Exception:
+        pass
+    return None
+
+def limpar_sessao_url():
+    try:
+        if hasattr(st, "query_params"):
+            st.query_params.clear()
+        elif hasattr(st, "experimental_set_query_params"):
+            st.experimental_set_query_params()
+    except Exception:
+        pass
+
+def normalizar_url_video(url):
+    if not url or not isinstance(url, str):
+        return ""
+    url = url.strip()
+    if "youtube.com/shorts/" in url:
+        url = url.replace("youtube.com/shorts/", "youtube.com/watch?v=")
+    elif "youtu.be/" in url:
+        try:
+            id_vid = url.split("youtu.be/")[1].split("?")[0].split("/")[0]
+            url = f"https://www.youtube.com/watch?v={id_vid}"
+        except Exception:
+            pass
+    elif "m.youtube.com" in url:
+        url = url.replace("m.youtube.com", "www.youtube.com")
+    return url
 
 def preparar_foto_perfil(arquivo):
     imagem = Image.open(BytesIO(arquivo.getvalue()))
@@ -779,42 +968,95 @@ def plot_volume_series(df_treinos):
 # TELA DE LOGIN (TODAS AS LETRAS EM PRETO)
 # ==========================================
 def mostrar_tela_login():
-    estilo_fundo_tela_toda = ""
-    if LOGO_BASE64:
+    caminho_foto = obter_caminho_foto_login()
+    foto_b64 = carregar_imagem_base64(caminho_foto, (1920, 1920), 85)
+
+    if foto_b64:
         estilo_fundo_tela_toda = f"""
-        /* FUNDO DA TELA TODA DE LOGIN COM A LOGO EM TELA CHEIA */
-        [data-testid="stAppViewContainer"],
-        .stApp {{
-            background-color: #000000 !important;
+        /* FUNDO DA TELA TODA DE LOGIN COM A FOTO EM TELA CHEIA */
+        html, body, .stApp,
+        [data-testid="stAppViewContainer"] {{
+            background-color: #05070c !important;
             background-image: 
-                radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.45) 65%, rgba(0, 0, 0, 0.85) 100%),
-                url('data:image/jpeg;base64,{LOGO_BASE64}') !important;
-            background-position: center center, center center !important;
-            background-repeat: no-repeat, no-repeat !important;
-            background-attachment: fixed, fixed !important;
-            background-size: cover, cover !important;
-        }}
-
-        [data-testid="stHeader"] {{
-            background: transparent !important;
-        }}
-
-        section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
-            background: transparent !important;
+                linear-gradient(rgba(5, 7, 13, 0.40), rgba(5, 7, 13, 0.70)),
+                url('data:image/jpeg;base64,{foto_b64}') !important;
+            background-position: center center !important;
+            background-repeat: no-repeat !important;
+            background-attachment: fixed !important;
+            background-size: cover !important;
+            min-height: 100vh !important;
+            width: 100vw !important;
         }}
         """
+    else:
+        estilo_fundo_tela_toda = """
+        html, body, .stApp,
+        [data-testid="stAppViewContainer"] {
+            background-color: #070a10 !important;
+            background: radial-gradient(circle at 50% 50%, #172338 0%, #0a0e17 65%, #05070c 100%) !important;
+            min-height: 100vh !important;
+            width: 100vw !important;
+        }
+        """
 
-    st.markdown(
+    st.html(
         f"""
         <style>
+        /* ESCONDE BARRA LATERAL E CABEÇALHO PARA TELA CHEIA REAL NO LOGIN */
+        [data-testid="stSidebar"],
+        section[data-testid="stSidebar"],
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapseButton"] {{
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+        }}
+
+        header[data-testid="stHeader"],
+        [data-testid="stHeader"] {{
+            display: none !important;
+            background: transparent !important;
+        }}
+
         {estilo_fundo_tela_toda}
 
+        section.main,
+        [data-testid="stMain"],
+        [data-testid="stMainBlockContainer"] {{
+            background: transparent !important;
+        }}
+
         /* Centralização perfeita na tela de login */
+        [data-testid="stMainBlockContainer"],
         .block-container {{
-            padding-top: 2rem !important;
+            padding-top: calc(50vh - 290px) !important;
             padding-bottom: 2rem !important;
-            max-width: 480px !important;
+            max-width: 470px !important;
             margin: 0 auto !important;
+        }}
+
+        @media (max-height: 700px) {{
+            [data-testid="stMainBlockContainer"],
+            .block-container {{
+                padding-top: 1.5rem !important;
+            }}
+        }}
+
+        @media (max-width: 768px) {{
+            .stApp,
+            [data-testid="stAppViewContainer"] {{
+                background-attachment: scroll !important;
+            }}
+            [data-testid="stMainBlockContainer"],
+            .block-container {{
+                padding-top: 1.2rem !important;
+                padding-bottom: 1.8rem !important;
+                max-width: 96% !important;
+            }}
+            .st-key-card_login_box {{
+                padding: 1.3rem 1.1rem !important;
+                border-radius: 18px !important;
+            }}
         }}
 
         /* Card de login branco com borda e sombra */
@@ -823,7 +1065,7 @@ def mostrar_tela_login():
             border: 2px solid #f5c400 !important;
             border-radius: 24px !important;
             padding: 1.8rem !important;
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.75), 0 0 35px rgba(245, 196, 0, 0.25) !important;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 35px rgba(245, 196, 0, 0.35) !important;
             backdrop-filter: blur(14px) !important;
             -webkit-backdrop-filter: blur(14px) !important;
         }}
@@ -922,84 +1164,83 @@ def mostrar_tela_login():
             object-fit: cover !important;
         }}
         </style>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     st.write("")
     with st.container(border=True, key="card_login_box"):
-        if os.path.isfile(CAMINHO_LOGO):
+        if CAMINHO_LOGO and os.path.isfile(CAMINHO_LOGO):
             st.image(CAMINHO_LOGO, width=170)
 
-            st.markdown(
-                """
-                <div style="text-align: center; margin-bottom: 1.2rem; margin-top: 0.4rem;">
-                    <span style="display: inline-block; background: #f5c400; color: #000000; border-radius: 20px; padding: 5px 16px; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 0.6rem;">
-                        ⚡ KN ALTA PERFORMANCE
-                    </span>
-                    <h2 style="margin: 0.2rem 0; font-size: 2rem; color: #000000;">Acesse sua conta</h2>
-                    <p style="color: #1f2937; font-size: 0.95rem; margin: 0; font-weight: 600;">
-                        Plataforma de Gestão e Treinamento Esportivo Personalizado
-                    </p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            """
+            <div style="text-align: center; margin-bottom: 1.2rem; margin-top: 0.4rem;">
+                <span style="display: inline-block; background: #f5c400; color: #000000; border-radius: 20px; padding: 5px 16px; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 0.6rem;">
+                    ⚡ KN ALTA PERFORMANCE
+                </span>
+                <h2 style="margin: 0.2rem 0; font-size: 2rem; color: #000000;">Acesse sua conta</h2>
+                <p style="color: #1f2937; font-size: 0.95rem; margin: 0; font-weight: 600;">
+                    Plataforma de Gestão e Treinamento Esportivo Personalizado
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-            aba_entrar, aba_cadastro = st.tabs(["🔑 Entrar no Sistema", "📝 Criar Usuário"])
-            usuarios = carregar_usuarios()
+        aba_entrar, aba_cadastro = st.tabs(["🔑 Entrar no Sistema", "📝 Criar Usuário"])
+        usuarios = carregar_usuarios()
 
-            with aba_entrar:
-                with st.form("form_login"):
-                    usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário").strip().lower()
-                    senha = st.text_input("Senha", type="password", key="login_senha", placeholder="••••••••")
-                    entrar = st.form_submit_button("Entrar no Painel", type="primary", use_container_width=True)
-                if entrar:
-                    registro = usuarios.get(usuario)
-                    if registro and hmac.compare_digest(
-                        gerar_hash_senha(senha, registro["salt"]), registro["hash"]
-                    ):
-                        st.session_state.usuario_autenticado = usuario
-                        st.query_params["session"] = gerar_token_sessao(usuario, registro)
-                        st.rerun()
-                    st.error("Usuário ou senha incorretos.")
+        with aba_entrar:
+            with st.form("form_login"):
+                usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário").strip().lower()
+                senha = st.text_input("Senha", type="password", key="login_senha", placeholder="••••••••")
+                entrar = st.form_submit_button("Entrar no Painel", type="primary", use_container_width=True)
+            if entrar:
+                registro = usuarios.get(usuario)
+                if registro and hmac.compare_digest(
+                    gerar_hash_senha(senha, registro["salt"]), registro["hash"]
+                ):
+                    st.session_state.usuario_autenticado = usuario
+                    definir_sessao_url(gerar_token_sessao(usuario, registro))
+                    st.rerun()
+                st.error("Usuário ou senha incorretos.")
 
-            with aba_cadastro:
-                if any(registro.get("tipo") == "admin" for registro in usuarios.values()):
-                    st.caption("A nova conta será de atleta/usuário. O treinador associará o treino em seguida.")
+        with aba_cadastro:
+            if any(registro.get("tipo") == "admin" for registro in usuarios.values()):
+                st.caption("A nova conta será de atleta/usuário. O treinador associará o treino em seguida.")
+            else:
+                st.caption("⚡ A primeira conta cadastrada será o administrador/treinador.")
+            with st.form("form_cadastro"):
+                novo_usuario = st.text_input("Nome de usuário", key="cadastro_usuario", placeholder="Ex: joaosilva").strip().lower()
+                nova_senha = st.text_input("Senha (mínimo de 8 caracteres)", type="password", key="cadastro_senha", placeholder="Mínimo 8 caracteres")
+                confirmar_senha = st.text_input("Confirme a senha", type="password", key="confirmar_senha", placeholder="Repita a senha")
+                cadastrar = st.form_submit_button("Criar Minha Conta", type="primary", use_container_width=True)
+            if cadastrar:
+                if len(novo_usuario) < 3 or len(novo_usuario) > 32:
+                    st.error("O usuário deve ter entre 3 e 32 caracteres.")
+                elif not all(caractere.isalnum() or caractere in "._-" for caractere in novo_usuario):
+                    st.error("Use apenas letras, números, ponto, hífen ou sublinhado no usuário.")
+                elif novo_usuario in usuarios:
+                    st.error("Esse usuário já existe.")
+                elif len(nova_senha) < 8:
+                    st.error("A senha deve ter pelo menos 8 caracteres.")
+                elif nova_senha != confirmar_senha:
+                    st.error("As senhas não coincidem.")
                 else:
-                    st.caption("⚡ A primeira conta cadastrada será o administrador/treinador.")
-                with st.form("form_cadastro"):
-                    novo_usuario = st.text_input("Nome de usuário", key="cadastro_usuario", placeholder="Ex: joaosilva").strip().lower()
-                    nova_senha = st.text_input("Senha (mínimo de 8 caracteres)", type="password", key="cadastro_senha", placeholder="Mínimo 8 caracteres")
-                    confirmar_senha = st.text_input("Confirme a senha", type="password", key="confirmar_senha", placeholder="Repita a senha")
-                    cadastrar = st.form_submit_button("Criar Minha Conta", type="primary", use_container_width=True)
-                if cadastrar:
-                    if len(novo_usuario) < 3 or len(novo_usuario) > 32:
-                        st.error("O usuário deve ter entre 3 e 32 caracteres.")
-                    elif not all(caractere.isalnum() or caractere in "._-" for caractere in novo_usuario):
-                        st.error("Use apenas letras, números, ponto, hífen ou sublinhado no usuário.")
-                    elif novo_usuario in usuarios:
-                        st.error("Esse usuário já existe.")
-                    elif len(nova_senha) < 8:
-                        st.error("A senha deve ter pelo menos 8 caracteres.")
-                    elif nova_senha != confirmar_senha:
-                        st.error("As senhas não coincidem.")
-                    else:
-                        salt = secrets.token_hex(16)
-                        novo_reg = {
-                            "salt": salt,
-                            "hash": gerar_hash_senha(nova_senha, salt),
-                            "tipo": "admin" if not any(
-                                registro.get("tipo") == "admin"
-                                for registro in usuarios.values()
-                            ) else "usuario",
-                        }
-                        usuarios[novo_usuario] = novo_reg
-                        salvar_usuarios(usuarios)
-                        st.session_state.usuario_autenticado = novo_usuario
-                        st.query_params["session"] = gerar_token_sessao(novo_usuario, novo_reg)
-                        st.rerun()
+                    salt = secrets.token_hex(16)
+                    novo_reg = {
+                        "salt": salt,
+                        "hash": gerar_hash_senha(nova_senha, salt),
+                        "tipo": "admin" if not any(
+                            registro.get("tipo") == "admin"
+                            for registro in usuarios.values()
+                        ) else "usuario",
+                    }
+                    usuarios[novo_usuario] = novo_reg
+                    salvar_usuarios(usuarios)
+                    st.session_state.usuario_autenticado = novo_usuario
+                    definir_sessao_url(gerar_token_sessao(novo_usuario, novo_reg))
+                    st.rerun()
 
 # ==========================================
 # CONTROLE DE SESSÃO E ACESSO
@@ -1008,29 +1249,30 @@ usuarios = carregar_usuarios()
 
 # Se não estiver no session_state, tenta restaurar sessão salva na URL (evita desconectar no reload F5)
 if not st.session_state.get("usuario_autenticado"):
-    token_sessao = st.query_params.get("session") or st.query_params.get("auth")
+    token_sessao = obter_sessao_url()
     if token_sessao:
         usuario_recuperado = validar_token_sessao(token_sessao, usuarios)
         if usuario_recuperado:
             st.session_state.usuario_autenticado = usuario_recuperado
         else:
-            st.query_params.clear()
+            limpar_sessao_url()
 
 if not st.session_state.get("usuario_autenticado"):
     mostrar_tela_login()
     st.stop()
 
+injetar_fundo_dashboard()
 usuario_autenticado = st.session_state.usuario_autenticado
 registro_usuario = usuarios.get(usuario_autenticado)
 if not registro_usuario:
-    st.query_params.clear()
+    limpar_sessao_url()
     st.session_state.pop("usuario_autenticado", None)
     st.stop()
 
 # Garante que o token de sessão esteja gravado na URL do navegador para futuros recarregamentos
-token_atual = st.query_params.get("session")
+token_atual = obter_sessao_url()
 if not token_atual or validar_token_sessao(token_atual, usuarios) != usuario_autenticado:
-    st.query_params["session"] = gerar_token_sessao(usuario_autenticado, registro_usuario)
+    definir_sessao_url(gerar_token_sessao(usuario_autenticado, registro_usuario))
 
 eh_admin = registro_usuario.get("tipo") == "admin"
 contas_admin = [
@@ -1141,7 +1383,7 @@ with st.sidebar:
 
     sair = st.button("↩  Sair da conta", key="btn_logout", use_container_width=True)
     if sair:
-        st.query_params.clear()
+        limpar_sessao_url()
         st.session_state.pop("usuario_autenticado", None)
         st.session_state.pop("db", None)
         st.session_state.pop("usuario_dados", None)
@@ -1153,6 +1395,38 @@ with st.sidebar:
     aluno_atual = None
 
     if eh_admin:
+        with st.expander("🖼️ Foto do Programa (Login e Fundo)"):
+            st.caption("Altere a foto que aparece na tela inteira de login e no fundo do sistema:")
+            nova_foto_sistema = st.file_uploader(
+                "Selecionar imagem:",
+                type=["jpg", "jpeg", "png", "webp"],
+                key="upload_foto_sistema_bg",
+                help="Envie qualquer imagem do seu computador ou celular para usar como tela cheia de login."
+            )
+            if nova_foto_sistema is not None:
+                if st.button("💾 Salvar como Foto do Programa", type="primary", use_container_width=True, key="btn_salvar_foto_sistema"):
+                    try:
+                        caminho_salvar = os.path.join(DIRETORIO_APP, "foto_login.jpg")
+                        img = Image.open(nova_foto_sistema).convert("RGB")
+                        img.save(caminho_salvar, format="JPEG", quality=90, optimize=True)
+                        st.cache_data.clear()
+                        notificar_sucesso("Foto do programa atualizada!", "🖼️")
+                        st.success("Nova foto salva com sucesso!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar imagem: {e}")
+
+            caminho_custom = os.path.join(DIRETORIO_APP, "foto_login.jpg")
+            if os.path.isfile(caminho_custom):
+                if st.button("🔄 Restaurar foto original", key="btn_restaurar_bg_app", use_container_width=True):
+                    try:
+                        os.remove(caminho_custom)
+                        st.cache_data.clear()
+                        notificar_sucesso("Foto original restaurada!", "🔄")
+                        st.rerun()
+                    except Exception:
+                        pass
+
         st.markdown("#### 👥 Gerenciar Atletas")
         
         # Sincroniza atleta selecionado com session_state
@@ -1999,8 +2273,9 @@ else:
                     with col_midia:
                         if url_video:
                             st.markdown("<span style='font-size: 0.85rem; font-weight: 700; color: #cbd5e1;'>🎥 DEMONSTRAÇÃO EM VÍDEO</span>", unsafe_allow_html=True)
+                            url_video_ok = normalizar_url_video(url_video)
                             try:
-                                st.video(url_video)
+                                st.video(url_video_ok)
                             except Exception:
                                 st.warning("Não foi possível reproduzir o vídeo. Verifique se o link é válido.")
                         else:
