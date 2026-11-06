@@ -17,7 +17,7 @@ from PIL import Image, ImageOps, UnidentifiedImageError
 # CONFIGURAÇÕES E DADOS BASE
 # ==========================================
 st.set_page_config(
-    page_title="KN Alta Performance",
+    page_title="KW Alta Performance",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -50,11 +50,11 @@ def checar_firestore_ativo():
 USAR_FIRESTORE = checar_firestore_ativo()
 TAMANHO_MAXIMO_FOTO_PERFIL = 300 * 1024
 
-# Somente Leo e Wilian são administradores. Todos os demais são alunos/atletas.
-ADMINS_AUTORIZADOS = {"leo", "wilian", "willian"}
+# Somente Leo e William são administradores. Todos os demais são alunos/atletas.
+ADMINS_AUTORIZADOS = {"leo", "william", "wilian", "willian"}
 
 def eh_administrador(nome_usuario):
-    """Retorna True ESTRITAMENTE para os administradores autorizados: Leo e Wilian."""
+    """Retorna True ESTRITAMENTE para os administradores autorizados: Leo e William."""
     if not nome_usuario or not isinstance(nome_usuario, str):
         return False
     return nome_usuario.strip().lower() in ADMINS_AUTORIZADOS
@@ -832,7 +832,7 @@ def cliente_firestore():
         return None
 
 def carregar_dados(usuario):
-    contas_alvo = ["leo", "wilian"] if eh_administrador(usuario) else [usuario]
+    contas_alvo = ["leo", "william", "wilian"] if eh_administrador(usuario) else [usuario]
     if usuario and usuario not in contas_alvo:
         contas_alvo.append(usuario)
 
@@ -857,9 +857,9 @@ def carregar_dados(usuario):
                             if not atual.get("treinos") and registro.get("treinos"):
                                 alunos[chave_existente] = registro
                 if alunos:
-                    # Garante que os documentos pais de ambos os admins (leo e wilian) existam e fiquem sincronizados na nuvem
+                    # Garante que os documentos pais de ambos os admins (leo e william) existam e fiquem sincronizados na nuvem
                     if eh_administrador(usuario):
-                        for adm_c in ["leo", "wilian"]:
+                        for adm_c in ["leo", "william"]:
                             try:
                                 doc_adm = cli.collection("contas").document(adm_c)
                                 doc_adm.set(
@@ -877,8 +877,10 @@ def carregar_dados(usuario):
                             d_local = {"versao": 2, "contas": {}}
                         if "contas" not in d_local or not isinstance(d_local["contas"], dict):
                             d_local["contas"] = {}
-                        for conta_ref in contas_alvo:
+                        for conta_ref in ["leo", "william"]:
                             d_local["contas"][conta_ref] = alunos
+                        d_local["contas"].pop("wilian", None)
+                        d_local["contas"].pop("willian", None)
                         salvar_arquivo_dados(d_local)
                     except Exception:
                         pass
@@ -942,7 +944,7 @@ def salvar_arquivo_dados(dados):
         json.dump(dados, f, indent=4, ensure_ascii=False)
 
 def salvar_usuarios(usuarios):
-    # REGRA ESTREITA: Somente Leo e Wilian são administradores. Todos os outros são alunos/usuários.
+    # REGRA ESTREITA: Somente Leo e William são administradores. Todos os outros são alunos/usuários.
     for u_nome, u_reg in usuarios.items():
         if eh_administrador(u_nome):
             u_reg["tipo"] = "admin"
@@ -1055,10 +1057,10 @@ def excluir_aluno_total(conta_dados, nome_aluno, db_sessao):
 def salvar_dados(dados_usuario, usuario):
     admin_auth = st.session_state.get("usuario_autenticado", "")
     if not eh_administrador(admin_auth):
-        raise PermissionError("Acesso negado: Somente os administradores (Leo e Wilian) podem alterar treinos.")
+        raise PermissionError("Acesso negado: Somente os administradores (Leo e William) podem alterar treinos.")
 
-    contas_alvo = ["leo", "wilian"] if eh_administrador(usuario) else [usuario]
-    if usuario and usuario not in contas_alvo:
+    contas_alvo = ["leo", "william"] if eh_administrador(usuario) else [usuario]
+    if usuario and usuario not in contas_alvo and usuario not in {"wilian", "willian"}:
         contas_alvo.append(usuario)
 
     # PERSISTÊNCIA DUPLA: Salva no Firestore (Nuvem) E salva localmente no dados_treinos.json
@@ -1103,11 +1105,13 @@ def salvar_dados(dados_usuario, usuario):
         dados = {"versao": 2, "contas": {}}
 
     if dados.get("versao") != 2 or not isinstance(dados.get("contas"), dict):
-        contas = {adm: {} for adm in ["leo", "wilian"]}
+        contas = {adm: {} for adm in ["leo", "william"]}
         dados = {"versao": 2, "contas": contas}
 
     for conta_ref in contas_alvo:
         dados["contas"][conta_ref] = dados_usuario
+    dados["contas"].pop("wilian", None)
+    dados["contas"].pop("willian", None)
     try:
         salvar_arquivo_dados(dados)
     except Exception:
@@ -1137,7 +1141,7 @@ def carregar_usuarios():
                     documento.id: documento.to_dict()
                     for documento in cli.collection("usuarios").stream()
                 }
-                apenas_locais = [n for n in usuarios if n not in nuvem]
+                apenas_locais = [n for n in usuarios if n not in nuvem and n not in {"wilian", "willian"}]
                 for u_nome, u_reg in nuvem.items():
                     if isinstance(u_reg, dict) and u_reg.get("hash") and u_reg.get("salt"):
                         usuarios[u_nome] = u_reg
@@ -1165,7 +1169,7 @@ def carregar_usuarios():
                     "sexo": "Masculino"
                 }
             },
-            "wilian": {
+            "william": {
                 "salt": "4314dae8bc86258615cbd9885d5a8f1a",
                 "hash": "16dd48325f790d2047a3c46fe234fa035f0391b82413b20869a69cb502f975d0",
                 "tipo": "admin"
@@ -1176,8 +1180,23 @@ def carregar_usuarios():
         except Exception:
             pass
 
-    # REGRA: SOMENTE LEO E WILIAN SÃO ADMINS. TODOS OS OUTROS SÃO USUÁRIOS/ALUNOS.
+    # Migra grafias antigas ("wilian" / "willian") para "william"
     alterado = False
+    for grafia_antiga in ("wilian", "willian"):
+        if grafia_antiga in usuarios:
+            reg_antigo = usuarios.pop(grafia_antiga)
+            if "william" not in usuarios and isinstance(reg_antigo, dict):
+                usuarios["william"] = reg_antigo
+            if USAR_FIRESTORE:
+                cli = cliente_firestore()
+                if cli is not None:
+                    try:
+                        cli.collection("usuarios").document(grafia_antiga).delete()
+                    except Exception:
+                        pass
+            alterado = True
+
+    # REGRA: SOMENTE LEO E WILLIAM SÃO ADMINS. TODOS OS OUTROS SÃO USUÁRIOS/ALUNOS.
     for u_nome, u_reg in usuarios.items():
         if eh_administrador(u_nome):
             if u_reg.get("tipo") != "admin":
@@ -1188,7 +1207,7 @@ def carregar_usuarios():
                 u_reg["tipo"] = "usuario"
                 alterado = True
 
-    # Garante que leo e wilian sempre existam no sistema com credenciais válidas e tipo "admin"
+    # Garante que leo e william sempre existam no sistema com credenciais válidas e tipo "admin"
     if "leo" not in usuarios:
         usuarios["leo"] = {
             "salt": "6016dac021652a820a05d5fe89d3c36f",
@@ -1196,15 +1215,15 @@ def carregar_usuarios():
             "tipo": "admin"
         }
         alterado = True
-    if "wilian" not in usuarios or usuarios["wilian"].get("salt") == "9f2b8c7e1d4a5b6c3e2f1a0b9c8d7e6f":
-        perfil_wilian = usuarios.get("wilian", {}).get("perfil") if isinstance(usuarios.get("wilian"), dict) else None
-        usuarios["wilian"] = {
+    if "william" not in usuarios or usuarios["william"].get("salt") == "9f2b8c7e1d4a5b6c3e2f1a0b9c8d7e6f":
+        perfil_william = usuarios.get("william", {}).get("perfil") if isinstance(usuarios.get("william"), dict) else None
+        usuarios["william"] = {
             "salt": "4314dae8bc86258615cbd9885d5a8f1a",
             "hash": "16dd48325f790d2047a3c46fe234fa035f0391b82413b20869a69cb502f975d0",
             "tipo": "admin"
         }
-        if perfil_wilian:
-            usuarios["wilian"]["perfil"] = perfil_wilian
+        if perfil_william:
+            usuarios["william"]["perfil"] = perfil_william
         alterado = True
 
     if alterado:
@@ -1634,7 +1653,7 @@ def mostrar_tela_login():
             """
             <div style="text-align: center; margin-bottom: 1.2rem; margin-top: 0.4rem;">
                 <span style="display: inline-block; background: #f5c400; color: #000000; border-radius: 20px; padding: 5px 16px; font-size: 0.82rem; font-weight: 800; letter-spacing: 0.05em; margin-bottom: 0.6rem;">
-                    ⚡ KN ALTA PERFORMANCE
+                    ⚡ KW ALTA PERFORMANCE
                 </span>
                 <h2 style="margin: 0.2rem 0; font-size: 2rem; color: #000000;">Acesse sua conta</h2>
                 <p style="color: #1f2937; font-size: 0.95rem; margin: 0; font-weight: 600;">
@@ -1654,7 +1673,7 @@ def mostrar_tela_login():
                 senha = st.text_input("Senha", type="password", key="login_senha", placeholder="Digite sua senha")
                 entrar = st.form_submit_button("Entrar no Painel", type="primary", use_container_width=True)
             if entrar:
-                usuario_alvo = "wilian" if usuario == "willian" and "willian" not in usuarios else usuario
+                usuario_alvo = "william" if usuario in {"wilian", "willian"} and usuario not in usuarios else usuario
                 registro = usuarios.get(usuario_alvo)
                 if registro and hmac.compare_digest(
                     gerar_hash_senha(senha, registro["salt"]), registro["hash"]
@@ -1668,7 +1687,7 @@ def mostrar_tela_login():
                 st.error("Usuário ou senha incorretos.")
 
         with aba_cadastro:
-            st.caption("A nova conta será de atleta/aluno. Somente Leo e Wilian são administradores.")
+            st.caption("A nova conta será de atleta/aluno. Somente Leo e William são administradores.")
             with st.form("form_cadastro"):
                 novo_usuario = st.text_input("Nome de usuário", key="cadastro_usuario", placeholder="Ex: joaosilva").strip().lower()
                 nova_senha = st.text_input("Senha (mínimo de 8 caracteres)", type="password", key="cadastro_senha", placeholder="Mínimo 8 caracteres")
@@ -1690,7 +1709,7 @@ def mostrar_tela_login():
                     novo_reg = {
                         "salt": salt,
                         "hash": gerar_hash_senha(nova_senha, salt),
-                        "tipo": "usuario",  # SOMENTE LEO E WILIAN SÃO ADMINS
+                        "tipo": "usuario",  # SOMENTE LEO E WILLIAM SÃO ADMINS
                         "conta_admin": "leo",
                         "aluno": novo_usuario
                     }
@@ -1721,6 +1740,9 @@ if not st.session_state.get("usuario_autenticado"):
 
 injetar_fundo_dashboard()
 usuario_autenticado = st.session_state.usuario_autenticado
+if usuario_autenticado in {"wilian", "willian"} and "william" in usuarios:
+    usuario_autenticado = "william"
+    st.session_state.usuario_autenticado = "william"
 registro_usuario = usuarios.get(usuario_autenticado)
 if not registro_usuario:
     limpar_sessao_url()
@@ -1732,11 +1754,11 @@ token_atual = obter_sessao_url()
 if not token_atual or validar_token_sessao(token_atual, usuarios) != usuario_autenticado:
     definir_sessao_url(gerar_token_sessao(usuario_autenticado, registro_usuario))
 
-# SOMENTE LEO E WILIAN SÃO ADMINISTRADORES
+# SOMENTE LEO E WILLIAM SÃO ADMINISTRADORES
 eh_admin = eh_administrador(usuario_autenticado)
-contas_admin = [adm for adm in ["leo", "wilian"] if adm in usuarios]
+contas_admin = [adm for adm in ["leo", "william"] if adm in usuarios]
 if not contas_admin:
-    contas_admin = ["leo", "wilian"]
+    contas_admin = ["leo", "william"]
 conta_admin = "leo" if "leo" in contas_admin else contas_admin[0]
 if not eh_admin and not conta_admin:
     st.error("Nenhuma conta administradora está configurada.")
@@ -1823,7 +1845,7 @@ with st.sidebar:
     if os.path.exists(CAMINHO_LOGO):
         st.image(CAMINHO_LOGO, width=220)
     else:
-        st.markdown("### ⚡ KN ALTA PERFORMANCE")
+        st.markdown("### ⚡ KW ALTA PERFORMANCE")
 
     st.markdown(
         f"""
@@ -1889,7 +1911,7 @@ with st.sidebar:
                         pass
 
         with st.expander("🔐 Gerenciar Contas de Usuários (Apenas Admins)", expanded=False):
-            st.caption("Controle de acessos do sistema. **Somente Leo e Wilian são administradores.**")
+            st.caption("Controle de acessos do sistema. **Somente Leo e William são administradores.**")
             
             usuarios_ger = carregar_usuarios()
             itens_usuarios = sorted(
