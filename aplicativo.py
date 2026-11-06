@@ -27,8 +27,47 @@ DIRETORIO_APP = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_DADOS = os.path.join(DIRETORIO_APP, "dados_treinos.json")
 ARQUIVO_USUARIOS = os.path.join(DIRETORIO_APP, "usuarios.json")
 CAMINHO_LOGO = os.path.join(DIRETORIO_APP, "1000370127.jpg")
-USAR_FIRESTORE = os.getenv("FIRESTORE_ENABLED", "").lower() in {"1", "true", "yes"}
+def checar_firestore_ativo():
+    if os.getenv("FIRESTORE_ENABLED", "").lower() in {"1", "true", "yes"}:
+        return True
+    try:
+        if hasattr(st, "secrets"):
+            if "FIRESTORE_ENABLED" in st.secrets and str(st.secrets["FIRESTORE_ENABLED"]).lower() in {"1", "true", "yes"}:
+                return True
+            if "project_id" in st.secrets and "private_key" in st.secrets:
+                return True
+            for chave in ["gcp_service_account", "firebase", "firestore", "google_credentials"]:
+                if chave in st.secrets:
+                    return True
+    except Exception:
+        pass
+    # Se o arquivo local de credenciais do Firebase existir, ativa o Firestore automaticamente
+    caminho_cred = os.path.join(DIRETORIO_APP, "kwborachoque-313e3-firebase-adminsdk-fbsvc-8b0fbe3d51.json")
+    if os.path.isfile(caminho_cred):
+        return True
+    return False
+
+USAR_FIRESTORE = checar_firestore_ativo()
 TAMANHO_MAXIMO_FOTO_PERFIL = 300 * 1024
+
+# Somente Leo e Wilian são administradores. Todos os demais são alunos/atletas.
+ADMINS_AUTORIZADOS = {"leo", "wilian", "willian"}
+
+def eh_administrador(nome_usuario):
+    """Retorna True ESTRITAMENTE para os administradores autorizados: Leo e Wilian."""
+    if not nome_usuario or not isinstance(nome_usuario, str):
+        return False
+    return nome_usuario.strip().lower() in ADMINS_AUTORIZADOS
+
+def injetar_css(codigo_css):
+    """Injeta código CSS com compatibilidade universal para todas as versões do Streamlit."""
+    try:
+        if hasattr(st, "html"):
+            st.html(f"<style>\n{codigo_css}\n</style>")
+        else:
+            st.markdown(f"<style>\n{codigo_css}\n</style>", unsafe_allow_html=True)
+    except Exception:
+        st.markdown(f"<style>\n{codigo_css}\n</style>", unsafe_allow_html=True)
 
 MODALIDADES_ICONES = {
     "Futebol": "⚽ Futebol",
@@ -52,7 +91,11 @@ def carregar_imagem_base64(caminho, max_dim=(1920, 1920), qualidade=85):
         return None
     try:
         imagem = Image.open(caminho).convert("RGB")
-        imagem.thumbnail(max_dim, Image.Resampling.LANCZOS)
+        resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", getattr(Image, "ANTIALIAS", None))
+        if resample:
+            imagem.thumbnail(max_dim, resample)
+        else:
+            imagem.thumbnail(max_dim)
         buffer = BytesIO()
         imagem.save(buffer, format="JPEG", quality=qualidade, optimize=True)
         return base64.b64encode(buffer.getvalue()).decode("ascii")
@@ -82,9 +125,8 @@ FUNDO_LOGO_B64 = carregar_imagem_base64(CAMINHO_LOGO, (800, 800), 75)
 
 def injetar_fundo_dashboard():
     if FUNDO_LOGO_B64:
-        st.html(
+        injetar_css(
             f"""
-            <style>
             [data-testid="stAppViewContainer"] {{
                 background-color: #070b13 !important;
                 background-image: 
@@ -98,7 +140,6 @@ def injetar_fundo_dashboard():
             section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
                 background: transparent !important;
             }}
-            </style>
             """
         )
 
@@ -618,6 +659,138 @@ st.markdown(
 )
 
 # ==========================================
+# POLIMENTO VISUAL MOBILE-FIRST (APP-LIKE)
+# ==========================================
+injetar_css(
+    """
+    :root { color-scheme: dark; }
+
+    /* Rolagem suave, sem zoom de toque e sem barra horizontal */
+    html, body { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; overflow-x: hidden; }
+    * { -webkit-tap-highlight-color: transparent; }
+
+    /* Botões: pílula moderna com gradiente e feedback ao toque */
+    div[data-testid="stButton"] > button,
+    div[data-testid="stFormSubmitButton"] > button,
+    div[data-testid="stDownloadButton"] > button {
+        border-radius: 14px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.01em;
+        transition: transform .12s ease, box-shadow .2s ease, filter .2s ease !important;
+    }
+    div[data-testid="stButton"] > button[kind="primary"],
+    div[data-testid="stFormSubmitButton"] > button[kind="primary"] {
+        background: linear-gradient(135deg, #ffd43b 0%, #f5a800 100%) !important;
+        color: #111827 !important;
+        border: none !important;
+        box-shadow: 0 6px 18px rgba(245, 168, 0, 0.35) !important;
+    }
+    div[data-testid="stButton"] > button:active,
+    div[data-testid="stFormSubmitButton"] > button:active {
+        transform: scale(0.97);
+        filter: brightness(0.95);
+    }
+
+    /* Abas estilo "segmented control" */
+    [data-testid="stTabs"] [role="tablist"] {
+        gap: 6px;
+        background: rgba(255,255,255,0.05);
+        padding: 5px;
+        border-radius: 16px;
+        border-bottom: none !important;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+    [data-testid="stTabs"] [role="tablist"]::-webkit-scrollbar { display: none; }
+    [data-testid="stTabs"] button[role="tab"] {
+        border-radius: 12px !important;
+        white-space: nowrap;
+        transition: background .2s ease, color .2s ease;
+    }
+    [data-testid="stTabs"] button[role="tab"][aria-selected="true"] {
+        background: linear-gradient(135deg, rgba(245,196,0,0.22), rgba(56,189,248,0.14)) !important;
+        color: #ffd43b !important;
+    }
+    [data-testid="stTabs"] [data-baseweb="tab-highlight"],
+    [data-testid="stTabs"] [data-baseweb="tab-border"] { display: none !important; }
+
+    /* Expanders como cartões */
+    [data-testid="stExpander"] {
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        border-radius: 16px !important;
+        background: rgba(15, 22, 36, 0.7) !important;
+        overflow: hidden;
+    }
+
+    /* Barra de progresso com gradiente */
+    [data-testid="stProgress"] div[role="progressbar"] > div,
+    [data-testid="stProgress"] > div > div > div > div {
+        background: linear-gradient(90deg, #f5c400, #38bdf8) !important;
+        border-radius: 999px !important;
+    }
+
+    /* Imagens e vídeos arredondados */
+    [data-testid="stImage"] img, [data-testid="stVideo"] video, iframe {
+        border-radius: 16px !important;
+    }
+
+    @media (max-width: 768px) {
+        [data-testid="stAppViewContainer"] main .block-container {
+            padding: 0.9rem 0.8rem 5rem 0.8rem !important;
+        }
+        h1 { font-size: 1.6rem !important; line-height: 1.2 !important; }
+        h2 { font-size: 1.3rem !important; }
+        h3 { font-size: 1.1rem !important; }
+
+        /* Colunas empilham em largura total (cards legíveis) */
+        [data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+            gap: 0.6rem !important;
+        }
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: calc(50% - 0.6rem) !important;
+            flex: 1 1 calc(50% - 0.6rem) !important;
+        }
+
+        /* Cartões mais compactos e com cantos amplos */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            border-radius: 18px !important;
+            padding: 0.2rem !important;
+        }
+        [data-testid="stMetric"] { padding: 0.8rem 0.9rem !important; border-radius: 16px !important; }
+
+        /* Alvos de toque confortáveis e sem zoom do iOS */
+        input, textarea, div[data-baseweb="select"] * { font-size: 16px !important; }
+        div[data-baseweb="input"], div[data-baseweb="select"] > div { min-height: 48px !important; }
+        div[data-testid="stButton"] > button,
+        div[data-testid="stFormSubmitButton"] > button { min-height: 48px !important; width: 100%; }
+
+        /* Abas rolam na horizontal, fixas no topo */
+        [data-testid="stTabs"] [role="tablist"] {
+            position: sticky; top: 0; z-index: 50;
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            background: rgba(10, 14, 23, 0.85);
+        }
+
+        /* Tabelas rolam sem quebrar o layout */
+        [data-testid="stDataFrame"], [data-testid="stTable"] { overflow-x: auto; border-radius: 14px; }
+
+        /* Safe-area (iPhone com notch) */
+        [data-testid="stAppViewContainer"] main .block-container {
+            padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
+        }
+    }
+
+    @media (max-width: 420px) {
+        [data-testid="stHorizontalBlock"] > [data-testid="stColumn"] {
+            min-width: 100% !important;
+            flex: 1 1 100% !important;
+        }
+    }
+    """
+)
+
+# ==========================================
 # FUNÇÕES DE BANCO DE DADOS (JSON / FIRESTORE)
 # ==========================================
 @st.cache_resource(show_spinner=False)
@@ -625,54 +798,143 @@ def cliente_firestore():
     try:
         from google.cloud import firestore
         # 1. Verifica se credenciais foram fornecidas via st.secrets (Streamlit Cloud)
-        if hasattr(st, "secrets"):
-            for chave in ["gcp_service_account", "firebase", "firestore", "google_credentials"]:
-                if chave in st.secrets:
-                    from google.oauth2 import service_account
-                    info = dict(st.secrets[chave])
-                    creds = service_account.Credentials.from_service_account_info(info)
-                    return firestore.Client(credentials=creds)
+        try:
+            if hasattr(st, "secrets"):
+                from google.oauth2 import service_account
+                candidatos_secrets = []
+                for chave in ["gcp_service_account", "firebase", "firestore", "google_credentials"]:
+                    if chave in st.secrets:
+                        candidatos_secrets.append(dict(st.secrets[chave]))
+                if "project_id" in st.secrets and "private_key" in st.secrets:
+                    candidatos_secrets.append(dict(st.secrets))
+                for bruta in candidatos_secrets:
+                    try:
+                        info = {k: v for k, v in bruta.items() if isinstance(v, str)}
+                        if "type" not in info:
+                            info["type"] = "service_account"
+                        if "private_key" in info:
+                            info["private_key"] = info["private_key"].replace("\\n", "\n")
+                        creds = service_account.Credentials.from_service_account_info(info)
+                        return firestore.Client(credentials=creds, project=info.get("project_id", "kwborachoque-313e3"))
+                    except Exception:
+                        continue
+        except Exception:
+            pass
         # 2. Verifica se arquivo local de credenciais do Firebase existe
         caminho_cred = os.path.join(DIRETORIO_APP, "kwborachoque-313e3-firebase-adminsdk-fbsvc-8b0fbe3d51.json")
         if os.path.isfile(caminho_cred):
             from google.oauth2 import service_account
             creds = service_account.Credentials.from_service_account_file(caminho_cred)
-            return firestore.Client(credentials=creds)
+            return firestore.Client(credentials=creds, project="kwborachoque-313e3")
         # 3. Tentativa padrão de client do ambiente
-        return firestore.Client()
+        return firestore.Client(project="kwborachoque-313e3")
     except Exception:
         return None
 
 def carregar_dados(usuario):
+    contas_alvo = ["leo", "wilian"] if eh_administrador(usuario) else [usuario]
+    if usuario and usuario not in contas_alvo:
+        contas_alvo.append(usuario)
+
     if USAR_FIRESTORE:
         cli = cliente_firestore()
         if cli is not None:
             try:
                 alunos = {}
-                colecao = cli.collection("contas").document(usuario).collection("alunos")
-                for documento in colecao.stream():
-                    registro = documento.to_dict()
-                    nome = registro.pop("nome", documento.id)
-                    alunos[nome] = registro
-                return alunos
+                for conta_ref in contas_alvo:
+                    colecao = cli.collection("contas").document(conta_ref).collection("alunos")
+                    for documento in colecao.stream():
+                        registro = documento.to_dict() or {}
+                        nome = registro.pop("nome", documento.id)
+                        chave_existente = next(
+                            (k for k in alunos if str(k).strip().casefold() == str(nome).strip().casefold()),
+                            None,
+                        )
+                        if chave_existente is None:
+                            alunos[nome] = registro
+                        else:
+                            atual = alunos[chave_existente]
+                            if not atual.get("treinos") and registro.get("treinos"):
+                                alunos[chave_existente] = registro
+                if alunos:
+                    # Garante que os documentos pais de ambos os admins (leo e wilian) existam e fiquem sincronizados na nuvem
+                    if eh_administrador(usuario):
+                        for adm_c in ["leo", "wilian"]:
+                            try:
+                                doc_adm = cli.collection("contas").document(adm_c)
+                                doc_adm.set(
+                                    {"admin": adm_c, "tipo": "admin", "ativo": True, "total_alunos": len(alunos)},
+                                    merge=True,
+                                )
+                            except Exception:
+                                pass
+                    # Atualiza o cache local também para manter ambos sincronizados
+                    try:
+                        if os.path.exists(ARQUIVO_DADOS):
+                            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                                d_local = json.load(f)
+                        else:
+                            d_local = {"versao": 2, "contas": {}}
+                        if "contas" not in d_local or not isinstance(d_local["contas"], dict):
+                            d_local["contas"] = {}
+                        for conta_ref in contas_alvo:
+                            d_local["contas"][conta_ref] = alunos
+                        salvar_arquivo_dados(d_local)
+                    except Exception:
+                        pass
+                    return alunos
             except Exception:
                 pass
 
     if os.path.exists(ARQUIVO_DADOS):
-        with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
-            dados = json.load(f)
+        try:
+            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+        except Exception:
+            dados = {"versao": 2, "contas": {}}
     else:
         dados = {"versao": 2, "contas": {}}
 
     if dados.get("versao") == 2 and isinstance(dados.get("contas"), dict):
-        return dados["contas"].get(usuario, {})
+        local = {}
+        for conta_ref in contas_alvo:
+            for nome, dados_aluno in dados["contas"].get(conta_ref, {}).items():
+                chave_existente = next(
+                    (k for k in local if str(k).strip().casefold() == str(nome).strip().casefold()),
+                    None,
+                )
+                if chave_existente is None:
+                    local[nome] = dados_aluno
+                elif not local[chave_existente].get("treinos") and dados_aluno.get("treinos"):
+                    local[chave_existente] = dados_aluno
+        # Nuvem vazia mas local com dados (ex.: treinos dos admins): envia para a nuvem
+        if local and USAR_FIRESTORE:
+            cli = cliente_firestore()
+            if cli is not None:
+                try:
+                    for conta_ref in contas_alvo:
+                        doc_adm = cli.collection("contas").document(conta_ref)
+                        doc_adm.set(
+                            {"admin": conta_ref, "tipo": "admin" if eh_administrador(conta_ref) else "usuario", "ativo": True},
+                            merge=True,
+                        )
+                        colecao = doc_adm.collection("alunos")
+                        for nome, dados_aluno in local.items():
+                            identificador = hashlib.sha256(nome.encode("utf-8")).hexdigest()
+                            colecao.document(identificador).set({"nome": nome, **dados_aluno})
+                except Exception:
+                    pass
+        return local
 
     usuarios = carregar_usuarios()
     contas = {}
     if usuarios:
         primeiro_usuario = next(iter(usuarios))
         contas[primeiro_usuario] = dados
-    salvar_arquivo_dados({"versao": 2, "contas": contas})
+    try:
+        salvar_arquivo_dados({"versao": 2, "contas": contas})
+    except Exception:
+        pass
     return contas.get(usuario, {})
 
 def salvar_arquivo_dados(dados):
@@ -680,6 +942,14 @@ def salvar_arquivo_dados(dados):
         json.dump(dados, f, indent=4, ensure_ascii=False)
 
 def salvar_usuarios(usuarios):
+    # REGRA ESTREITA: Somente Leo e Wilian são administradores. Todos os outros são alunos/usuários.
+    for u_nome, u_reg in usuarios.items():
+        if eh_administrador(u_nome):
+            u_reg["tipo"] = "admin"
+        else:
+            u_reg["tipo"] = "usuario"
+
+    # PERSISTÊNCIA DUPLA: Salva no Firestore (Nuvem) E salva localmente no usuarios.json
     if USAR_FIRESTORE:
         cli = cliente_firestore()
         if cli is not None:
@@ -687,90 +957,261 @@ def salvar_usuarios(usuarios):
                 colecao = cli.collection("usuarios")
                 for nome, registro in usuarios.items():
                     colecao.document(nome).set(registro)
-                return
+                    if eh_administrador(nome):
+                        cli.collection("contas").document(nome).set(
+                            {"admin": nome, "tipo": "admin", "ativo": True},
+                            merge=True,
+                        )
             except Exception:
                 pass
 
-    with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as arquivo:
-        json.dump(usuarios, arquivo, indent=4, ensure_ascii=False)
+    try:
+        with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as arquivo:
+            json.dump(usuarios, arquivo, indent=4, ensure_ascii=False)
+    except Exception:
+        pass
 
-def salvar_dados(dados_usuario, usuario):
-    usuarios = carregar_usuarios()
-    admin_auth = st.session_state.get("usuario_autenticado")
-    eh_autorizado = (
-        (admin_auth and usuarios.get(admin_auth, {}).get("tipo") == "admin") or
-        usuarios.get(usuario, {}).get("tipo") == "admin"
-    )
-    if not eh_autorizado:
-        raise PermissionError("Somente o administrador pode alterar os treinos.")
-
+def remover_usuario(nome_usuario):
+    """Remove a conta do login (Firestore + local). Admins nunca são removidos."""
+    if eh_administrador(nome_usuario):
+        return False
     if USAR_FIRESTORE:
         cli = cliente_firestore()
         if cli is not None:
             try:
-                colecao = cli.collection("contas").document(usuario).collection("alunos")
-                documentos_existentes = {
-                    documento.id: documento
-                    for documento in colecao.stream()
-                }
-                nomes_salvos = set()
-                for nome, dados_aluno in dados_usuario.items():
-                    identificador = hashlib.sha256(nome.encode("utf-8")).hexdigest()
-                    colecao.document(identificador).set({"nome": nome, **dados_aluno})
-                    nomes_salvos.add(identificador)
-                for identificador, documento in documentos_existentes.items():
-                    if identificador not in nomes_salvos:
-                        documento.reference.delete()
-                return
+                cli.collection("usuarios").document(nome_usuario).delete()
+            except Exception:
+                pass
+    try:
+        if os.path.exists(ARQUIVO_USUARIOS):
+            with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as f:
+                locais = json.load(f)
+            if nome_usuario in locais:
+                locais.pop(nome_usuario)
+                with open(ARQUIVO_USUARIOS, "w", encoding="utf-8") as f:
+                    json.dump(locais, f, indent=4, ensure_ascii=False)
+    except Exception:
+        pass
+    return True
+
+def excluir_aluno_total(conta_dados, nome_aluno, db_sessao):
+    """Apaga a ficha (nuvem + local + sessão) e os logins do aluno. Retorna lista de erros."""
+    erros = []
+    alvo = nome_aluno.strip().casefold()
+
+    # 1. Sessão
+    for chave in [k for k in list(db_sessao.keys()) if str(k).strip().casefold() == alvo]:
+        db_sessao.pop(chave, None)
+
+    # 2. Arquivo local de treinos
+    try:
+        if os.path.exists(ARQUIVO_DADOS):
+            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+            contas = dados.get("contas", {}) if isinstance(dados, dict) else {}
+            for conta, alunos in contas.items():
+                if isinstance(alunos, dict):
+                    for chave in [k for k in list(alunos.keys()) if str(k).strip().casefold() == alvo]:
+                        alunos.pop(chave, None)
+            salvar_arquivo_dados(dados)
+    except Exception as e:
+        erros.append(f"arquivo local de treinos: {e}")
+
+    # 3. Firestore: fichas
+    contas_login = []
+    if USAR_FIRESTORE:
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                for conta_doc in cli.collection("contas").stream():
+                    colecao = cli.collection("contas").document(conta_doc.id).collection("alunos")
+                    for doc in colecao.stream():
+                        reg = doc.to_dict() or {}
+                        if str(reg.get("nome", doc.id)).strip().casefold() == alvo:
+                            doc.reference.delete()
+                for conta in ADMINS_AUTORIZADOS | {conta_dados}:
+                    colecao = cli.collection("contas").document(conta).collection("alunos")
+                    for doc in colecao.stream():
+                        reg = doc.to_dict() or {}
+                        if str(reg.get("nome", doc.id)).strip().casefold() == alvo:
+                            doc.reference.delete()
+            except Exception as e:
+                erros.append(f"nuvem (treinos): {e}")
+
+    # 4. Logins vinculados (nuvem + local)
+    try:
+        usuarios_atuais = carregar_usuarios()
+        for u_nome, u_reg in usuarios_atuais.items():
+            if eh_administrador(u_nome):
+                continue
+            if str(u_reg.get("aluno", "")).strip().casefold() == alvo or u_nome.strip().casefold() == alvo:
+                contas_login.append(u_nome)
+        for u_nome in contas_login:
+            remover_usuario(u_nome)
+    except Exception as e:
+        erros.append(f"logins: {e}")
+    return erros, contas_login
+
+def salvar_dados(dados_usuario, usuario):
+    admin_auth = st.session_state.get("usuario_autenticado", "")
+    if not eh_administrador(admin_auth):
+        raise PermissionError("Acesso negado: Somente os administradores (Leo e Wilian) podem alterar treinos.")
+
+    contas_alvo = ["leo", "wilian"] if eh_administrador(usuario) else [usuario]
+    if usuario and usuario not in contas_alvo:
+        contas_alvo.append(usuario)
+
+    # PERSISTÊNCIA DUPLA: Salva no Firestore (Nuvem) E salva localmente no dados_treinos.json
+    if USAR_FIRESTORE:
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                for conta_ref in contas_alvo:
+                    doc_conta = cli.collection("contas").document(conta_ref)
+                    doc_conta.set(
+                        {
+                            "admin": conta_ref,
+                            "tipo": "admin" if eh_administrador(conta_ref) else "usuario",
+                            "ativo": True,
+                            "total_alunos": len(dados_usuario),
+                        },
+                        merge=True,
+                    )
+                    colecao = doc_conta.collection("alunos")
+                    documentos_existentes = {
+                        documento.id: documento
+                        for documento in colecao.stream()
+                    }
+                    nomes_salvos = set()
+                    for nome, dados_aluno in dados_usuario.items():
+                        identificador = hashlib.sha256(nome.encode("utf-8")).hexdigest()
+                        colecao.document(identificador).set({"nome": nome, **dados_aluno})
+                        nomes_salvos.add(identificador)
+                    for identificador, documento in documentos_existentes.items():
+                        if identificador not in nomes_salvos:
+                            documento.reference.delete()
             except Exception:
                 pass
 
     if os.path.exists(ARQUIVO_DADOS):
-        with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
-            dados = json.load(f)
+        try:
+            with open(ARQUIVO_DADOS, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+        except Exception:
+            dados = {"versao": 2, "contas": {}}
     else:
         dados = {"versao": 2, "contas": {}}
 
     if dados.get("versao") != 2 or not isinstance(dados.get("contas"), dict):
-        usuarios = carregar_usuarios()
-        contas = {}
-        if usuarios:
-            contas[next(iter(usuarios))] = dados
+        contas = {adm: {} for adm in ["leo", "wilian"]}
         dados = {"versao": 2, "contas": contas}
 
-    dados["contas"][usuario] = dados_usuario
-    salvar_arquivo_dados(dados)
+    for conta_ref in contas_alvo:
+        dados["contas"][conta_ref] = dados_usuario
+    try:
+        salvar_arquivo_dados(dados)
+    except Exception:
+        pass
 
 def carregar_usuarios():
+    # 1. Lê o arquivo local
+    if os.path.exists(ARQUIVO_USUARIOS):
+        try:
+            with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as arquivo:
+                usuarios = json.load(arquivo)
+        except Exception:
+            usuarios = {}
+    else:
+        usuarios = {}
+    if not isinstance(usuarios, dict):
+        usuarios = {}
+
+    # 2. Mescla com o Firestore (nuvem). Registros da nuvem têm prioridade, mas
+    #    usuários que só existem localmente (ex.: admins) NÃO são perdidos —
+    #    eles são enviados para a nuvem para que "não existe" não volte a ocorrer.
     if USAR_FIRESTORE:
         cli = cliente_firestore()
         if cli is not None:
             try:
-                usuarios = {
+                nuvem = {
                     documento.id: documento.to_dict()
                     for documento in cli.collection("usuarios").stream()
                 }
-                if usuarios:
-                    return usuarios
+                apenas_locais = [n for n in usuarios if n not in nuvem]
+                for u_nome, u_reg in nuvem.items():
+                    if isinstance(u_reg, dict) and u_reg.get("hash") and u_reg.get("salt"):
+                        usuarios[u_nome] = u_reg
+                for u_nome in apenas_locais:
+                    try:
+                        cli.collection("usuarios").document(u_nome).set(usuarios[u_nome])
+                    except Exception:
+                        pass
             except Exception:
                 pass
 
-    if os.path.exists(ARQUIVO_USUARIOS):
-        with open(ARQUIVO_USUARIOS, "r", encoding="utf-8") as arquivo:
-            usuarios = json.load(arquivo)
-    else:
-        return {}
+    if not usuarios:
+        # Fallback inicial seguro para garantir que a aplicação nunca abra sem login no Streamlit Cloud
+        usuarios = {
+            "leo": {
+                "salt": "6016dac021652a820a05d5fe89d3c36f",
+                "hash": "8ad3c1f5fb334d592435e0bdcfad76836e9860b948683e8d1bac5a4414742d47",
+                "tipo": "admin",
+                "perfil": {
+                    "peso": 94.0,
+                    "peso_kg": 94.0,
+                    "altura": 180.5,
+                    "altura_cm": 180.5,
+                    "idade": 37,
+                    "sexo": "Masculino"
+                }
+            },
+            "wilian": {
+                "salt": "4314dae8bc86258615cbd9885d5a8f1a",
+                "hash": "16dd48325f790d2047a3c46fe234fa035f0391b82413b20869a69cb502f975d0",
+                "tipo": "admin"
+            }
+        }
+        try:
+            salvar_usuarios(usuarios)
+        except Exception:
+            pass
 
+    # REGRA: SOMENTE LEO E WILIAN SÃO ADMINS. TODOS OS OUTROS SÃO USUÁRIOS/ALUNOS.
     alterado = False
-    if usuarios and not any(
-        registro.get("tipo") == "admin" for registro in usuarios.values()
-    ):
-        primeiro_usuario = next(iter(usuarios))
-        usuarios[primeiro_usuario]["tipo"] = "admin"
+    for u_nome, u_reg in usuarios.items():
+        if eh_administrador(u_nome):
+            if u_reg.get("tipo") != "admin":
+                u_reg["tipo"] = "admin"
+                alterado = True
+        else:
+            if u_reg.get("tipo") != "usuario":
+                u_reg["tipo"] = "usuario"
+                alterado = True
+
+    # Garante que leo e wilian sempre existam no sistema com credenciais válidas e tipo "admin"
+    if "leo" not in usuarios:
+        usuarios["leo"] = {
+            "salt": "6016dac021652a820a05d5fe89d3c36f",
+            "hash": "8ad3c1f5fb334d592435e0bdcfad76836e9860b948683e8d1bac5a4414742d47",
+            "tipo": "admin"
+        }
+        alterado = True
+    if "wilian" not in usuarios or usuarios["wilian"].get("salt") == "9f2b8c7e1d4a5b6c3e2f1a0b9c8d7e6f":
+        perfil_wilian = usuarios.get("wilian", {}).get("perfil") if isinstance(usuarios.get("wilian"), dict) else None
+        usuarios["wilian"] = {
+            "salt": "4314dae8bc86258615cbd9885d5a8f1a",
+            "hash": "16dd48325f790d2047a3c46fe234fa035f0391b82413b20869a69cb502f975d0",
+            "tipo": "admin"
+        }
+        if perfil_wilian:
+            usuarios["wilian"]["perfil"] = perfil_wilian
         alterado = True
 
     if alterado:
-        salvar_usuarios(usuarios)
+        try:
+            salvar_usuarios(usuarios)
+        except Exception:
+            pass
     return usuarios
 
 def gerar_hash_senha(senha, salt):
@@ -999,9 +1440,8 @@ def mostrar_tela_login():
         }
         """
 
-    st.html(
+    injetar_css(
         f"""
-        <style>
         /* ESCONDE BARRA LATERAL E CABEÇALHO PARA TELA CHEIA REAL NO LOGIN */
         [data-testid="stSidebar"],
         section[data-testid="stSidebar"],
@@ -1059,9 +1499,9 @@ def mostrar_tela_login():
             }}
         }}
 
-        /* Card de login branco com borda e sombra */
+        /* Card de login branco com borda e sombra (opaco: nada aparece atrás das letras) */
         .st-key-card_login_box {{
-            background-color: rgba(255, 255, 255, 0.94) !important;
+            background-color: #ffffff !important;
             border: 2px solid #f5c400 !important;
             border-radius: 24px !important;
             padding: 1.8rem !important;
@@ -1107,6 +1547,25 @@ def mostrar_tela_login():
         [data-testid="stAppViewContainer"] main div[data-baseweb="input"]:focus-within {{
             border-color: #f5c400 !important;
             box-shadow: 0 0 0 3px rgba(245, 196, 0, 0.35) !important;
+        }}
+
+        /* Sem texto/sombra duplicada atrás do que é digitado (inclui autofill do navegador) */
+        [data-testid="stAppViewContainer"] main div[data-baseweb="input"] > div,
+        [data-testid="stAppViewContainer"] main div[data-baseweb="base-input"] {{
+            background-color: #f8fafc !important;
+        }}
+        [data-testid="stAppViewContainer"] main input {{
+            text-shadow: none !important;
+            background-image: none !important;
+        }}
+        [data-testid="stAppViewContainer"] main input:-webkit-autofill,
+        [data-testid="stAppViewContainer"] main input:-webkit-autofill:focus {{
+            -webkit-box-shadow: 0 0 0 1000px #f8fafc inset !important;
+            -webkit-text-fill-color: #000000 !important;
+        }}
+        [data-testid="stAppViewContainer"] main input:focus::placeholder {{
+            color: transparent !important;
+            -webkit-text-fill-color: transparent !important;
         }}
 
         ::placeholder {{
@@ -1163,7 +1622,6 @@ def mostrar_tela_login():
             display: block !important;
             object-fit: cover !important;
         }}
-        </style>
         """
     )
 
@@ -1193,35 +1651,36 @@ def mostrar_tela_login():
         with aba_entrar:
             with st.form("form_login"):
                 usuario = st.text_input("Usuário", key="login_usuario", placeholder="Digite seu usuário").strip().lower()
-                senha = st.text_input("Senha", type="password", key="login_senha", placeholder="••••••••")
+                senha = st.text_input("Senha", type="password", key="login_senha", placeholder="Digite sua senha")
                 entrar = st.form_submit_button("Entrar no Painel", type="primary", use_container_width=True)
             if entrar:
-                registro = usuarios.get(usuario)
+                usuario_alvo = "wilian" if usuario == "willian" and "willian" not in usuarios else usuario
+                registro = usuarios.get(usuario_alvo)
                 if registro and hmac.compare_digest(
                     gerar_hash_senha(senha, registro["salt"]), registro["hash"]
                 ):
-                    st.session_state.usuario_autenticado = usuario
-                    definir_sessao_url(gerar_token_sessao(usuario, registro))
+                    if eh_administrador(usuario_alvo) and registro.get("tipo") != "admin":
+                        registro["tipo"] = "admin"
+                        salvar_usuarios(usuarios)
+                    st.session_state.usuario_autenticado = usuario_alvo
+                    definir_sessao_url(gerar_token_sessao(usuario_alvo, registro))
                     st.rerun()
                 st.error("Usuário ou senha incorretos.")
 
         with aba_cadastro:
-            if any(registro.get("tipo") == "admin" for registro in usuarios.values()):
-                st.caption("A nova conta será de atleta/usuário. O treinador associará o treino em seguida.")
-            else:
-                st.caption("⚡ A primeira conta cadastrada será o administrador/treinador.")
+            st.caption("A nova conta será de atleta/aluno. Somente Leo e Wilian são administradores.")
             with st.form("form_cadastro"):
                 novo_usuario = st.text_input("Nome de usuário", key="cadastro_usuario", placeholder="Ex: joaosilva").strip().lower()
                 nova_senha = st.text_input("Senha (mínimo de 8 caracteres)", type="password", key="cadastro_senha", placeholder="Mínimo 8 caracteres")
                 confirmar_senha = st.text_input("Confirme a senha", type="password", key="confirmar_senha", placeholder="Repita a senha")
-                cadastrar = st.form_submit_button("Criar Minha Conta", type="primary", use_container_width=True)
+                cadastrar = st.form_submit_button("Criar Minha Conta de Aluno", type="primary", use_container_width=True)
             if cadastrar:
                 if len(novo_usuario) < 3 or len(novo_usuario) > 32:
                     st.error("O usuário deve ter entre 3 e 32 caracteres.")
                 elif not all(caractere.isalnum() or caractere in "._-" for caractere in novo_usuario):
                     st.error("Use apenas letras, números, ponto, hífen ou sublinhado no usuário.")
-                elif novo_usuario in usuarios:
-                    st.error("Esse usuário já existe.")
+                elif novo_usuario in usuarios or novo_usuario in ADMINS_AUTORIZADOS:
+                    st.error("Esse usuário já existe ou está reservado.")
                 elif len(nova_senha) < 8:
                     st.error("A senha deve ter pelo menos 8 caracteres.")
                 elif nova_senha != confirmar_senha:
@@ -1231,10 +1690,9 @@ def mostrar_tela_login():
                     novo_reg = {
                         "salt": salt,
                         "hash": gerar_hash_senha(nova_senha, salt),
-                        "tipo": "admin" if not any(
-                            registro.get("tipo") == "admin"
-                            for registro in usuarios.values()
-                        ) else "usuario",
+                        "tipo": "usuario",  # SOMENTE LEO E WILIAN SÃO ADMINS
+                        "conta_admin": "leo",
+                        "aluno": novo_usuario
                     }
                     usuarios[novo_usuario] = novo_reg
                     salvar_usuarios(usuarios)
@@ -1274,12 +1732,12 @@ token_atual = obter_sessao_url()
 if not token_atual or validar_token_sessao(token_atual, usuarios) != usuario_autenticado:
     definir_sessao_url(gerar_token_sessao(usuario_autenticado, registro_usuario))
 
-eh_admin = registro_usuario.get("tipo") == "admin"
-contas_admin = [
-    nome for nome, registro in usuarios.items()
-    if registro.get("tipo") == "admin"
-]
-conta_admin = next(iter(contas_admin), None)
+# SOMENTE LEO E WILIAN SÃO ADMINISTRADORES
+eh_admin = eh_administrador(usuario_autenticado)
+contas_admin = [adm for adm in ["leo", "wilian"] if adm in usuarios]
+if not contas_admin:
+    contas_admin = ["leo", "wilian"]
+conta_admin = "leo" if "leo" in contas_admin else contas_admin[0]
 if not eh_admin and not conta_admin:
     st.error("Nenhuma conta administradora está configurada.")
     st.stop()
@@ -1355,6 +1813,9 @@ def atualizar_db():
         raise PermissionError("Somente o administrador pode alterar os treinos.")
     salvar_dados(st.session_state.db, conta_dados)
 
+if st.session_state.get("aviso_exclusao"):
+    st.error(st.session_state.pop("aviso_exclusao"))
+
 # ==========================================
 # BARRA LATERAL (SIDEBAR)
 # ==========================================
@@ -1426,6 +1887,91 @@ with st.sidebar:
                         st.rerun()
                     except Exception:
                         pass
+
+        with st.expander("🔐 Gerenciar Contas de Usuários (Apenas Admins)", expanded=False):
+            st.caption("Controle de acessos do sistema. **Somente Leo e Wilian são administradores.**")
+            
+            usuarios_ger = carregar_usuarios()
+            itens_usuarios = sorted(
+                usuarios_ger.items(),
+                key=lambda item: (0 if eh_administrador(item[0]) else 1, item[0]),
+            )
+            for u_nome, u_info in itens_usuarios:
+                eh_adm_u = eh_administrador(u_nome)
+                col_u_info, col_u_acao = st.columns([2.3, 1.2], vertical_alignment="center")
+                with col_u_info:
+                    st.markdown(
+                        f"""
+                        <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 4px;">
+                            <span>{'👑' if eh_adm_u else '🏃'}</span>
+                            <strong style="color: #ffffff;">{u_nome}</strong>
+                            <span class="{'kn-chip' if eh_adm_u else 'kn-chip-cyan'}" style="font-size: 0.72rem; padding: 2px 8px;">
+                                {'Administrador' if eh_adm_u else 'Atleta'}
+                            </span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    if not eh_adm_u:
+                        aluno_vinc = u_info.get("aluno", "Mesmo nome")
+                        st.caption(f"Ficha vinculada: **{aluno_vinc}**")
+                
+                with col_u_acao:
+                    if not eh_adm_u:
+                        if st.button("🗑️ Remover", key=f"btn_rem_user_sb_{u_nome}", use_container_width=True, help=f"Remover conta de {u_nome}"):
+                            usuarios_ger.pop(u_nome, None)
+                            remover_usuario(u_nome)
+                            notificar_sucesso(f"Usuário {u_nome} removido!", "🗑️")
+                            st.rerun()
+
+            st.write("")
+            st.markdown("##### 🔑 Redefinir Senha de Conta")
+            with st.form("form_sb_redefinir_senha"):
+                opcoes_usr_senha = [u for u, _ in itens_usuarios]
+                usr_alvo_senha = st.selectbox("Conta", opcoes_usr_senha, key="sb_adm_redef_u")
+                nova_senha_redef = st.text_input("Nova Senha", type="password", key="txt_adm_redef_s", placeholder="Mínimo 8 caracteres")
+                if st.form_submit_button("Salvar Nova Senha na Nuvem", use_container_width=True):
+                    if len(nova_senha_redef) < 8:
+                        st.error("A nova senha deve ter pelo menos 8 caracteres.")
+                    else:
+                        novo_salt = secrets.token_hex(16)
+                        usuarios_ger[usr_alvo_senha]["salt"] = novo_salt
+                        usuarios_ger[usr_alvo_senha]["hash"] = gerar_hash_senha(nova_senha_redef, novo_salt)
+                        usuarios_ger[usr_alvo_senha]["tipo"] = "admin" if eh_administrador(usr_alvo_senha) else "usuario"
+                        salvar_usuarios(usuarios_ger)
+                        notificar_sucesso(f"Senha de {usr_alvo_senha} atualizada na nuvem!", "🔑")
+                        st.success(f"Senha de {usr_alvo_senha} atualizada!")
+                        st.rerun()
+
+            st.write("")
+            st.markdown("##### ➕ Criar Nova Conta de Aluno")
+            with st.form("form_sb_criar_usuario_aluno"):
+                novo_u_aluno = st.text_input("Usuário do Aluno", placeholder="Ex.: novatleta", key="txt_adm_cad_u").strip().lower()
+                nova_s_aluno = st.text_input("Senha", type="password", key="txt_adm_cad_s", placeholder="Mínimo 8 caracteres")
+                vinc_opcoes = ["(Usar o mesmo nome)"] + alunos_existentes
+                vinc_escolhido = st.selectbox("Vincular à Ficha do Atleta:", vinc_opcoes, key="sb_adm_vinc_atl")
+
+                if st.form_submit_button("Cadastrar Conta de Aluno", type="primary", use_container_width=True):
+                    if len(novo_u_aluno) < 3:
+                        st.error("Usuário deve ter pelo menos 3 caracteres.")
+                    elif novo_u_aluno in usuarios_ger or novo_u_aluno in ADMINS_AUTORIZADOS:
+                        st.error("Este usuário já existe ou está reservado!")
+                    elif len(nova_s_aluno) < 8:
+                        st.error("A senha deve ter pelo menos 8 caracteres.")
+                    else:
+                        salt_novo = secrets.token_hex(16)
+                        aluno_final = novo_u_aluno if vinc_escolhido == vinc_opcoes[0] else vinc_escolhido
+                        usuarios_ger[novo_u_aluno] = {
+                            "salt": salt_novo,
+                            "hash": gerar_hash_senha(nova_s_aluno, salt_novo),
+                            "tipo": "usuario",
+                            "conta_admin": usuario_autenticado,
+                            "aluno": aluno_final
+                        }
+                        salvar_usuarios(usuarios_ger)
+                        notificar_sucesso(f"Conta de {novo_u_aluno} criada!", "✅")
+                        st.success(f"Aluno {novo_u_aluno} cadastrado com sucesso!")
+                        st.rerun()
 
         st.markdown("#### 👥 Gerenciar Atletas")
         
@@ -1933,6 +2479,47 @@ else:
                             break
 
                     st.success("Dados do atleta atualizados com sucesso!")
+                    st.rerun()
+
+    # --- EXCLUIR ALUNO + BLOQUEAR ACESSO (somente admin) ---
+    if eh_admin and aluno_atual:
+        with st.expander("🚫 Excluir aluno e bloquear acesso", expanded=False):
+            contas_do_aluno = [
+                u_nome for u_nome, u_reg in usuarios.items()
+                if not eh_administrador(u_nome) and (
+                    u_reg.get("aluno") == aluno_atual or u_nome.casefold() == aluno_atual.casefold()
+                )
+            ]
+            st.warning(
+                f"Isso apaga **{aluno_atual}** com todos os treinos e remove o login "
+                + (f"({', '.join(contas_do_aluno)}) " if contas_do_aluno else "")
+                + "— ele não conseguirá mais entrar no aplicativo."
+            )
+            chave_conf_total = f"confirmar_excluir_total_{aluno_atual}"
+            if st.button("🗑️ Excluir aluno", use_container_width=True, key=f"btn_excluir_total_{aluno_atual}"):
+                st.session_state[chave_conf_total] = True
+            if st.session_state.get(chave_conf_total):
+                st.error(f"Tem certeza que quer excluir **{aluno_atual}**? Não dá para desfazer.")
+                c_tot_sim, c_tot_nao = st.columns(2)
+                with c_tot_nao:
+                    if st.button("Cancelar", use_container_width=True, key=f"btn_excluir_total_nao_{aluno_atual}"):
+                        st.session_state.pop(chave_conf_total, None)
+                        st.rerun()
+                with c_tot_sim:
+                    confirmado = st.button("Sim, excluir", type="primary", use_container_width=True,
+                                           key=f"btn_excluir_total_sim_{aluno_atual}")
+                if confirmado:
+                    nome_removido = aluno_atual
+                    erros_exclusao, logins_removidos = excluir_aluno_total(
+                        conta_dados, nome_removido, st.session_state.db
+                    )
+                    st.session_state.pop(chave_conf_total, None)
+                    st.session_state["aluno_selecionado"] = None
+                    st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                    if erros_exclusao:
+                        st.session_state["aviso_exclusao"] = "Alguns itens não foram removidos: " + " | ".join(erros_exclusao)
+                    else:
+                        notificar_sucesso(f"{nome_removido} excluído e acesso bloqueado!", "🚫")
                     st.rerun()
 
     # --- MÉTRICAS DE TREINO DO ATLETA (KPIS) ---
