@@ -1,10 +1,12 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 import json
 import os
+import re
 import base64
 import hashlib
 import hmac
@@ -26,6 +28,9 @@ st.set_page_config(
 DIRETORIO_APP = os.path.dirname(os.path.abspath(__file__))
 ARQUIVO_DADOS = os.path.join(DIRETORIO_APP, "dados_treinos.json")
 ARQUIVO_USUARIOS = os.path.join(DIRETORIO_APP, "usuarios.json")
+ARQUIVO_CATALOGO_VIDEOS = os.path.join(DIRETORIO_APP, "catalogo_videos.json")
+DIRETORIO_VIDEOS = os.path.join(DIRETORIO_APP, "videos_exercicios")
+os.makedirs(DIRETORIO_VIDEOS, exist_ok=True)
 CAMINHO_LOGO = os.path.join(DIRETORIO_APP, "1000370127.jpg")
 def checar_firestore_ativo():
     if os.getenv("FIRESTORE_ENABLED", "").lower() in {"1", "true", "yes"}:
@@ -120,25 +125,98 @@ def obter_caminho_foto_login():
             return caminho
     return CAMINHO_LOGO if os.path.isfile(CAMINHO_LOGO) else None
 
-LOGO_BASE64 = carregar_imagem_base64(CAMINHO_LOGO, (512, 512), 85)
-FUNDO_LOGO_B64 = carregar_imagem_base64(CAMINHO_LOGO, (800, 800), 75)
+LOGO_BASE64 = carregar_imagem_base64(CAMINHO_LOGO, (1024, 1024), 88)
+FUNDO_LOGO_B64 = carregar_imagem_base64(obter_caminho_foto_login() or CAMINHO_LOGO, (1400, 1400), 85)
 
 def injetar_fundo_dashboard():
-    if FUNDO_LOGO_B64:
+    logo_b64 = carregar_imagem_base64(CAMINHO_LOGO, (1400, 1400), 85) or FUNDO_LOGO_B64
+    fundo_pag_b64 = carregar_imagem_base64(obter_caminho_foto_login() or CAMINHO_LOGO, (1600, 1600), 85) or logo_b64
+    if logo_b64:
         injetar_css(
             f"""
-            [data-testid="stAppViewContainer"] {{
-                background-color: #070b13 !important;
-                background-image: 
-                    radial-gradient(circle at 50% 50%, rgba(10, 15, 26, 0.65) 0%, rgba(7, 10, 18, 0.82) 65%, rgba(5, 7, 13, 0.94) 100%),
-                    url('data:image/jpeg;base64,{FUNDO_LOGO_B64}') !important;
+            /* 1. FUNDO DE TELA DE TODAS AS PÁGINAS COM A LOGO DO PROJETO */
+            html, body, .stApp, [data-testid="stAppViewContainer"] {{
+                background-color: #05070d !important;
+                background-image:
+                    radial-gradient(circle at 50% 50%, rgba(7, 11, 19, 0.50) 0%, rgba(5, 8, 15, 0.68) 70%, rgba(4, 6, 12, 0.82) 100%),
+                    url('data:image/jpeg;base64,{fundo_pag_b64}') !important;
                 background-position: center center, center center !important;
                 background-repeat: no-repeat, no-repeat !important;
                 background-attachment: fixed, fixed !important;
-                background-size: cover, min(750px, 85vmin) !important;
+                background-size: cover, contain !important;
             }}
             section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
                 background: transparent !important;
+            }}
+
+            /* 2. FUNDO DO MENU LATERAL (SIDEBAR) COM A LOGO DO PROJETO */
+            section[data-testid="stSidebar"],
+            section[data-testid="stSidebar"] > div:first-child {{
+                background-color: #070a12 !important;
+                background-image:
+                    linear-gradient(180deg, rgba(7, 10, 18, 0.78) 0%, rgba(12, 18, 32, 0.82) 50%, rgba(7, 10, 18, 0.88) 100%),
+                    url('data:image/jpeg;base64,{logo_b64}') !important;
+                background-position: center center, center center !important;
+                background-repeat: no-repeat, no-repeat !important;
+                background-size: cover, contain !important;
+            }}
+
+            /* 3. FUNDO DOS MENUS, EXPANDERS, ABAS E PAINÉIS COM A LOGO DO PROJETO */
+            [data-testid="stVerticalBlockBorderWrapper"],
+            [data-testid="stExpander"],
+            div[data-testid="stPopoverBody"] {{
+                background-color: rgba(11, 16, 28, 0.76) !important;
+                background-image:
+                    linear-gradient(145deg, rgba(14, 20, 34, 0.78) 0%, rgba(8, 12, 22, 0.84) 100%),
+                    url('data:image/jpeg;base64,{logo_b64}') !important;
+                background-position: center center, center center !important;
+                background-repeat: no-repeat, no-repeat !important;
+                background-size: cover, contain !important;
+                backdrop-filter: blur(8px) !important;
+                -webkit-backdrop-filter: blur(8px) !important;
+            }}
+
+            [data-testid="stExpander"] details,
+            [data-testid="stExpander"] details summary {{
+                background: rgba(10, 15, 26, 0.55) !important;
+            }}
+
+            [data-testid="stTabs"] [role="tablist"] {{
+                background-image:
+                    linear-gradient(90deg, rgba(10, 15, 26, 0.80) 0%, rgba(17, 24, 39, 0.80) 100%),
+                    url('data:image/jpeg;base64,{logo_b64}') !important;
+                background-position: center center !important;
+                background-repeat: no-repeat !important;
+                background-size: cover !important;
+            }}
+
+            [data-testid="stMetric"] {{
+                background-image:
+                    linear-gradient(135deg, rgba(16, 23, 38, 0.80) 0%, rgba(10, 15, 26, 0.86) 100%),
+                    url('data:image/jpeg;base64,{logo_b64}') !important;
+                background-position: center center, right center !important;
+                background-repeat: no-repeat, no-repeat !important;
+                background-size: cover, contain !important;
+            }}
+
+            /* 4. FUNDO DOS MENUS SUSPENSOS (DROPDOWNS / SELECTS) COM A LOGO SUAVE E LETRA PRETA */
+            div[data-baseweb="popover"],
+            div[data-baseweb="menu"],
+            ul[role="listbox"] {{
+                background-color: #ffffff !important;
+                background-image:
+                    linear-gradient(rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.92)),
+                    url('data:image/jpeg;base64,{logo_b64}') !important;
+                background-position: center center, center center !important;
+                background-repeat: no-repeat, no-repeat !important;
+                background-size: cover, contain !important;
+            }}
+            li[role="option"] {{
+                background-color: transparent !important;
+            }}
+            li[role="option"]:hover,
+            li[role="option"][aria-selected="true"] {{
+                background-color: rgba(254, 240, 138, 0.88) !important;
             }}
             """
         )
@@ -1312,6 +1390,8 @@ def normalizar_url_video(url):
     if not url or not isinstance(url, str):
         return ""
     url = url.strip()
+    if url.startswith("arquivo_local:") or url.startswith("data:video/"):
+        return url
     if "youtube.com/shorts/" in url:
         url = url.replace("youtube.com/shorts/", "youtube.com/watch?v=")
     elif "youtu.be/" in url:
@@ -1323,6 +1403,490 @@ def normalizar_url_video(url):
     elif "m.youtube.com" in url:
         url = url.replace("m.youtube.com", "www.youtube.com")
     return url
+
+# ==========================================
+# GESTÃO DE VÍDEOS E GRAVAÇÃO (EXCLUSIVO ADMIN)
+# ==========================================
+def carregar_catalogo_videos():
+    catalogo = {}
+    if os.path.exists(ARQUIVO_CATALOGO_VIDEOS):
+        try:
+            with open(ARQUIVO_CATALOGO_VIDEOS, "r", encoding="utf-8") as f:
+                dados = json.load(f)
+            if isinstance(dados, dict):
+                catalogo = dados
+        except Exception:
+            catalogo = {}
+
+    if USAR_FIRESTORE:
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                for doc in cli.collection("catalogo_videos").stream():
+                    reg = doc.to_dict() or {}
+                    chave = reg.get("chave") or f"{reg.get('modalidade', '')}::{reg.get('exercicio', '')}"
+                    if chave and "::" in chave:
+                        catalogo[chave] = {
+                            "modalidade": reg.get("modalidade", chave.split("::", 1)[0]),
+                            "exercicio": reg.get("exercicio", chave.split("::", 1)[1]),
+                            "url_video": reg.get("url_video", ""),
+                            "observacoes": reg.get("observacoes", ""),
+                        }
+                if catalogo:
+                    try:
+                        with open(ARQUIVO_CATALOGO_VIDEOS, "w", encoding="utf-8") as f:
+                            json.dump(catalogo, f, indent=4, ensure_ascii=False)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+    return catalogo
+
+def salvar_catalogo_videos(catalogo):
+    admin_auth = st.session_state.get("usuario_autenticado", "")
+    if not eh_administrador(admin_auth):
+        raise PermissionError("Acesso negado: Somente os administradores podem gerenciar vídeos.")
+
+    try:
+        with open(ARQUIVO_CATALOGO_VIDEOS, "w", encoding="utf-8") as f:
+            json.dump(catalogo, f, indent=4, ensure_ascii=False)
+    except Exception:
+        pass
+
+    if USAR_FIRESTORE:
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                colecao = cli.collection("catalogo_videos")
+                existentes = {d.id: d for d in colecao.stream()}
+                salvos = set()
+                for chave, info in catalogo.items():
+                    if not isinstance(info, dict):
+                        continue
+                    doc_id = hashlib.sha256(chave.encode("utf-8")).hexdigest()
+                    colecao.document(doc_id).set({"chave": chave, **info})
+                    salvos.add(doc_id)
+                for doc_id, doc_ref in existentes.items():
+                    if doc_id not in salvos:
+                        doc_ref.reference.delete()
+            except Exception:
+                pass
+    st.session_state["catalogo_videos"] = catalogo
+
+def obter_catalogo_sessao():
+    if "catalogo_videos" not in st.session_state or not isinstance(st.session_state.get("catalogo_videos"), dict):
+        st.session_state["catalogo_videos"] = carregar_catalogo_videos()
+    return st.session_state["catalogo_videos"]
+
+def obter_exercicios_modalidade(modalidade, catalogo=None):
+    if catalogo is None:
+        catalogo = obter_catalogo_sessao()
+    base = list(MODALIDADES_EXERCICIOS.get(modalidade, []))
+    vistos = {e.strip().casefold() for e in base}
+    for chave, info in catalogo.items():
+        if isinstance(info, dict) and info.get("modalidade") == modalidade:
+            ex = str(info.get("exercicio", "")).strip()
+            if ex and ex.casefold() not in vistos:
+                base.append(ex)
+                vistos.add(ex.casefold())
+    if "db" in st.session_state and isinstance(st.session_state.db, dict):
+        for dados_al in st.session_state.db.values():
+            if isinstance(dados_al, dict) and dados_al.get("modalidade") == modalidade:
+                for t in dados_al.get("treinos", []):
+                    ex = str(t.get("exercicio", "")).strip()
+                    if ex and ex.casefold() not in vistos:
+                        base.append(ex)
+                        vistos.add(ex.casefold())
+    return base
+
+def obter_video_catalogo(modalidade, exercicio, catalogo=None):
+    if not exercicio:
+        return ""
+    if catalogo is None:
+        catalogo = obter_catalogo_sessao()
+    chave_exata = f"{modalidade}::{exercicio}"
+    if chave_exata in catalogo and isinstance(catalogo[chave_exata], dict):
+        vid = str(catalogo[chave_exata].get("url_video", "")).strip()
+        if vid:
+            return vid
+    mod_cf = str(modalidade or "").strip().casefold()
+    ex_cf = str(exercicio).strip().casefold()
+    for info in catalogo.values():
+        if isinstance(info, dict):
+            if str(info.get("modalidade", "")).strip().casefold() == mod_cf and str(info.get("exercicio", "")).strip().casefold() == ex_cf:
+                vid = str(info.get("url_video", "")).strip()
+                if vid:
+                    return vid
+    for info in catalogo.values():
+        if isinstance(info, dict) and str(info.get("exercicio", "")).strip().casefold() == ex_cf:
+            vid = str(info.get("url_video", "")).strip()
+            if vid:
+                return vid
+    return ""
+
+def salvar_arquivo_video_upload(arquivo_upload, prefixo="exercicio"):
+    admin_auth = st.session_state.get("usuario_autenticado", "")
+    if not eh_administrador(admin_auth):
+        raise PermissionError("Somente administradores podem enviar ou gravar vídeos.")
+
+    os.makedirs(DIRETORIO_VIDEOS, exist_ok=True)
+    conteudo = arquivo_upload.getvalue()
+    if not conteudo:
+        raise ValueError("O arquivo de vídeo está vazio.")
+
+    nome_orig = getattr(arquivo_upload, "name", "video.mp4") or "video.mp4"
+    _, ext = os.path.splitext(nome_orig)
+    ext = ext.lower() if ext else ".mp4"
+    if ext not in {".mp4", ".webm", ".mov", ".avi", ".mkv", ".m4v", ".3gp"}:
+        ext = ".mp4"
+
+    slug = re.sub(r"[^a-z0-9]+", "_", str(prefixo).lower()).strip("_")[:30] or "exercicio"
+    hash_curto = hashlib.sha256(conteudo).hexdigest()[:12]
+    nome_final = f"vid_{slug}_{hash_curto}{ext}"
+    caminho_completo = os.path.join(DIRETORIO_VIDEOS, nome_final)
+
+    with open(caminho_completo, "wb") as f:
+        f.write(conteudo)
+
+    # Sincroniza em partes no Firestore se ativo (para funcionar também na nuvem até ~20MB)
+    if USAR_FIRESTORE and len(conteudo) <= 20 * 1024 * 1024:
+        cli = cliente_firestore()
+        if cli is not None:
+            try:
+                b64_total = base64.b64encode(conteudo).decode("ascii")
+                tam_bloco = 700_000
+                partes = [b64_total[i:i + tam_bloco] for i in range(0, len(b64_total), tam_bloco)]
+                doc_vid = cli.collection("arquivos_videos").document(nome_final)
+                doc_vid.set({
+                    "nome_arquivo": nome_final,
+                    "tamanho_bytes": len(conteudo),
+                    "total_partes": len(partes),
+                    "extensao": ext,
+                    "autor": admin_auth,
+                })
+                col_partes = doc_vid.collection("partes")
+                for idx_p, texto_parte in enumerate(partes):
+                    col_partes.document(f"{idx_p:04d}").set({"indice": idx_p, "dados": texto_parte})
+            except Exception:
+                pass
+
+    return f"arquivo_local:{nome_final}"
+
+def resolver_midia_video(url_ou_ref):
+    if not url_ou_ref or not isinstance(url_ou_ref, str):
+        return None
+    ref = url_ou_ref.strip()
+    if not ref:
+        return None
+
+    if ref.startswith("arquivo_local:"):
+        nome_arquivo = ref.split("arquivo_local:", 1)[1].strip()
+        nome_seguro = os.path.basename(nome_arquivo)
+        caminho_local = os.path.join(DIRETORIO_VIDEOS, nome_seguro)
+        if os.path.isfile(caminho_local):
+            return caminho_local
+        if USAR_FIRESTORE:
+            cli = cliente_firestore()
+            if cli is not None:
+                try:
+                    doc_vid = cli.collection("arquivos_videos").document(nome_seguro)
+                    docs_partes = list(doc_vid.collection("partes").stream())
+                    if docs_partes:
+                        docs_partes.sort(key=lambda d: (d.to_dict() or {}).get("indice", 0))
+                        b64_unido = "".join((d.to_dict() or {}).get("dados", "") for d in docs_partes)
+                        if b64_unido:
+                            os.makedirs(DIRETORIO_VIDEOS, exist_ok=True)
+                            with open(caminho_local, "wb") as f:
+                                f.write(base64.b64decode(b64_unido))
+                            return caminho_local
+                except Exception:
+                    pass
+        return None
+
+    if ref.startswith("data:video/"):
+        try:
+            raw_b64 = ref.split("base64,", 1)[1]
+            return BytesIO(base64.b64decode(raw_b64))
+        except Exception:
+            return None
+
+    if os.path.isfile(ref):
+        return ref
+
+    return normalizar_url_video(ref)
+
+def exibir_player_video(url_ou_ref):
+    midia = resolver_midia_video(url_ou_ref)
+    if midia is None:
+        st.warning("Vídeo não encontrado ou link inválido.")
+        return False
+    try:
+        st.video(midia)
+        return True
+    except Exception:
+        st.warning("Não foi possível reproduzir o vídeo. Verifique o arquivo ou link informado.")
+        return False
+
+def renderizar_gravador_camera_html(chave_unica, nome_exercicio="exercicio"):
+    """Renderiza gravador de vídeo via câmera (webcam / celular frontal e traseira) integrado ao uploader."""
+    slug_ex = re.sub(r"[^a-z0-9]+", "_", str(nome_exercicio).lower()).strip("_")[:24] or "exercicio"
+    chave_container = f"box_up_vid_{chave_unica}"
+    html_gravador = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+    <meta charset="utf-8">
+    <style>
+        * {{ box-sizing: border-box; font-family: 'Plus Jakarta Sans', -apple-system, sans-serif; }}
+        body {{
+            margin: 0; padding: 12px;
+            background:
+                linear-gradient(145deg, rgba(17, 24, 39, 0.80) 0%, rgba(11, 17, 32, 0.86) 100%),
+                url('data:image/jpeg;base64,{LOGO_BASE64 or ""}') center center / contain no-repeat;
+            background-color: #0b1120;
+            color: #f8fafc;
+            border: 1.5px solid rgba(245, 196, 0, 0.35);
+            border-radius: 16px;
+        }}
+        .top-bar {{
+            display: flex; align-items: center; justify-content: space-between;
+            gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+        }}
+        .badge {{
+            background: rgba(245, 196, 0, 0.16); color: #f5c400;
+            border: 1px solid rgba(245, 196, 0, 0.4);
+            padding: 4px 12px; border-radius: 999px; font-weight: 800; font-size: 0.78rem;
+        }}
+        .timer {{
+            background: rgba(239, 68, 68, 0.18); color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            padding: 4px 12px; border-radius: 999px; font-weight: 800; font-size: 0.82rem;
+            display: none;
+        }}
+        .timer.active {{ display: inline-block; animation: pulse 1.2s infinite; }}
+        @keyframes pulse {{ 0% {{ opacity: 1; }} 50% {{ opacity: 0.45; }} 100% {{ opacity: 1; }} }}
+        select {{
+            background: #ffffff; color: #000000; font-weight: 700;
+            border: 1px solid #cbd5e1; border-radius: 10px; padding: 6px 10px; font-size: 0.82rem;
+        }}
+        .video-box {{
+            width: 100%; height: 240px; background: #050811;
+            border: 1px dashed rgba(255,255,255,0.18); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            overflow: hidden; position: relative; margin-bottom: 10px;
+        }}
+        video {{ width: 100%; height: 100%; object-fit: cover; border-radius: 12px; }}
+        .placeholder {{ text-align: center; color: #94a3b8; font-size: 0.85rem; padding: 16px; }}
+        .btn-row {{ display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }}
+        button {{
+            border: none; border-radius: 11px; padding: 9px 14px;
+            font-weight: 800; font-size: 0.84rem; cursor: pointer;
+            transition: transform 0.12s ease, opacity 0.2s ease;
+        }}
+        button:active {{ transform: scale(0.97); }}
+        button:disabled {{ opacity: 0.4; cursor: not-allowed; }}
+        .btn-cam {{ background: #38bdf8; color: #082f49; }}
+        .btn-rec {{ background: #ef4444; color: #ffffff; }}
+        .btn-stop {{ background: #f59e0b; color: #111827; }}
+        .btn-use {{ background: linear-gradient(135deg, #f5c400 0%, #eab308 100%); color: #111827; }}
+        .btn-dl {{ background: rgba(255,255,255,0.1); color: #f8fafc; border: 1px solid rgba(255,255,255,0.2); }}
+        .status {{ text-align: center; font-size: 0.8rem; color: #cbd5e1; margin-top: 8px; min-height: 18px; }}
+    </style>
+    </head>
+    <body>
+        <div class="top-bar">
+            <span class="badge">🎥 GRAVADOR DE VÍDEO AO VIVO</span>
+            <select id="camMode" title="Escolher Câmera">
+                <option value="environment">📱 Câmera Traseira / Principal</option>
+                <option value="user">🤳 Câmera Frontal / Webcam</option>
+            </select>
+            <span id="recTimer" class="timer">🔴 GRAVANDO 00:00</span>
+        </div>
+
+        <div class="video-box">
+            <div id="placeholderMsg" class="placeholder">
+                🎬 Clique em <b>"1. Ligar Câmera"</b> abaixo para filmar o exercício direto pelo navegador.
+            </div>
+            <video id="liveVideo" autoplay muted playsinline style="display:none;"></video>
+            <video id="recordedVideo" controls playsinline style="display:none;"></video>
+        </div>
+
+        <div class="btn-row">
+            <button id="btnStartCam" class="btn-cam" onclick="startCamera()">📷 1. Ligar Câmera</button>
+            <button id="btnStartRec" class="btn-rec" onclick="startRecording()" disabled>🔴 2. Gravar</button>
+            <button id="btnStopRec" class="btn-stop" onclick="stopRecording()" disabled>⏹️ 3. Parar</button>
+            <button id="btnUseVid" class="btn-use" onclick="sendToUploader()" style="display:none;">✅ 4. Anexar Vídeo Gravado</button>
+            <button id="btnDownload" class="btn-dl" onclick="downloadRecorded()" style="display:none;">⬇️ Baixar Vídeo</button>
+        </div>
+        <div id="statusText" class="status">Pronto para gravar exercício.</div>
+
+        <script>
+        let mediaStream = null;
+        let mediaRecorder = null;
+        let recordedChunks = [];
+        let recordedBlob = null;
+        let recordedMime = 'video/webm';
+        let recordedExt = 'webm';
+        let timerInterval = null;
+        let secondsElapsed = 0;
+
+        const liveVideo = document.getElementById('liveVideo');
+        const recordedVideo = document.getElementById('recordedVideo');
+        const placeholderMsg = document.getElementById('placeholderMsg');
+        const btnStartCam = document.getElementById('btnStartCam');
+        const btnStartRec = document.getElementById('btnStartRec');
+        const btnStopRec = document.getElementById('btnStopRec');
+        const btnUseVid = document.getElementById('btnUseVid');
+        const btnDownload = document.getElementById('btnDownload');
+        const recTimer = document.getElementById('recTimer');
+        const statusText = document.getElementById('statusText');
+        const camMode = document.getElementById('camMode');
+
+        function formatTime(sec) {{
+            const m = String(Math.floor(sec / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            return m + ':' + s;
+        }}
+
+        async function startCamera() {{
+            try {{
+                if (mediaStream) {{
+                    mediaStream.getTracks().forEach(t => t.stop());
+                }}
+                const facing = camMode.value;
+                statusText.innerText = 'Solicitando permissão da câmera...';
+                try {{
+                    mediaStream = await navigator.mediaDevices.getUserMedia({{
+                        video: {{ facingMode: {{ ideal: facing }}, width: {{ ideal: 1280 }}, height: {{ ideal: 720 }} }},
+                        audio: true
+                    }});
+                }} catch (errAudio) {{
+                    mediaStream = await navigator.mediaDevices.getUserMedia({{
+                        video: true,
+                        audio: false
+                    }});
+                }}
+                placeholderMsg.style.display = 'none';
+                recordedVideo.style.display = 'none';
+                recordedVideo.src = '';
+                liveVideo.style.display = 'block';
+                liveVideo.srcObject = mediaStream;
+                btnStartRec.disabled = false;
+                btnStopRec.disabled = true;
+                btnUseVid.style.display = 'none';
+                btnDownload.style.display = 'none';
+                statusText.innerText = 'Câmera ativa! Clique em "2. Gravar" para iniciar a filmagem.';
+            }} catch (e) {{
+                statusText.innerText = '⚠️ Não foi possível acessar a câmera no navegador. Use o botão "Browse files" abaixo para gravar pela câmera nativa do celular ou enviar arquivo.';
+            }}
+        }}
+
+        function startRecording() {{
+            if (!mediaStream) return;
+            recordedChunks = [];
+            const mimeCandidates = [
+                'video/mp4',
+                'video/webm;codecs=vp9,opus',
+                'video/webm;codecs=vp8,opus',
+                'video/webm'
+            ];
+            recordedMime = 'video/webm';
+            for (const m of mimeCandidates) {{
+                if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) {{
+                    recordedMime = m;
+                    break;
+                }}
+            }}
+            recordedExt = recordedMime.includes('mp4') ? 'mp4' : 'webm';
+            try {{
+                mediaRecorder = new MediaRecorder(mediaStream, {{ mimeType: recordedMime }});
+            }} catch (e) {{
+                mediaRecorder = new MediaRecorder(mediaStream);
+            }}
+            mediaRecorder.ondataavailable = (ev) => {{
+                if (ev.data && ev.data.size > 0) recordedChunks.push(ev.data);
+            }};
+            mediaRecorder.onstop = () => {{
+                recordedBlob = new Blob(recordedChunks, {{ type: recordedMime }});
+                const url = URL.createObjectURL(recordedBlob);
+                liveVideo.style.display = 'none';
+                recordedVideo.style.display = 'block';
+                recordedVideo.src = url;
+                btnUseVid.style.display = 'inline-block';
+                btnDownload.style.display = 'inline-block';
+                statusText.innerHTML = '✅ Vídeo gravado! Clique em <b>"4. Anexar Vídeo Gravado"</b> e depois em <b>"Salvar Vídeo"</b>.';
+                if (mediaStream) {{
+                    mediaStream.getTracks().forEach(t => t.stop());
+                }}
+            }};
+            mediaRecorder.start(250);
+            secondsElapsed = 0;
+            recTimer.innerText = '🔴 GRAVANDO 00:00';
+            recTimer.classList.add('active');
+            timerInterval = setInterval(() => {{
+                secondsElapsed++;
+                recTimer.innerText = '🔴 GRAVANDO ' + formatTime(secondsElapsed);
+            }}, 1000);
+            btnStartRec.disabled = true;
+            btnStopRec.disabled = false;
+            statusText.innerText = 'Gravando exercício... Clique em "3. Parar" quando terminar.';
+        }}
+
+        function stopRecording() {{
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {{
+                mediaRecorder.stop();
+            }}
+            if (timerInterval) clearInterval(timerInterval);
+            recTimer.classList.remove('active');
+            btnStopRec.disabled = true;
+            btnStartRec.disabled = true;
+        }}
+
+        function sendToUploader() {{
+            if (!recordedBlob) return;
+            const fileName = 'gravacao_{slug_ex}_' + Date.now() + '.' + recordedExt;
+            try {{
+                const parentDoc = window.parent.document;
+                let fileInput = null;
+                const container = parentDoc.querySelector('.st-key-{chave_container}');
+                if (container) {{
+                    fileInput = container.querySelector('input[type="file"]');
+                }}
+                if (!fileInput) {{
+                    const allInputs = parentDoc.querySelectorAll('input[type="file"]');
+                    if (allInputs.length > 0) fileInput = allInputs[0];
+                }}
+                if (fileInput) {{
+                    const file = new File([recordedBlob], fileName, {{ type: recordedBlob.type || 'video/webm' }});
+                    const dt = new DataTransfer();
+                    dt.items.add(file);
+                    fileInput.files = dt.files;
+                    fileInput.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    fileInput.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    statusText.innerHTML = '🎉 <b>Vídeo anexado automaticamente abaixo!</b> Agora clique no botão amarelo <b>"💾 Salvar Vídeo Gravado/Enviado"</b>.';
+                    return;
+                }}
+            }} catch (err) {{
+                console.warn(err);
+            }}
+            downloadRecorded();
+            statusText.innerHTML = '⬇️ O vídeo foi baixado no seu aparelho. Selecione-o na caixa abaixo para salvar.';
+        }}
+
+        function downloadRecorded() {{
+            if (!recordedBlob) return;
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(recordedBlob);
+            a.download = 'gravacao_{slug_ex}_' + Date.now() + '.' + recordedExt;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }}
+        </script>
+    </body>
+    </html>
+    """
+    components.html(html_gravador, height=385)
 
 def preparar_foto_perfil(arquivo):
     imagem = Image.open(BytesIO(arquivo.getvalue()))
@@ -1518,9 +2082,15 @@ def mostrar_tela_login():
             }}
         }}
 
-        /* Card de login branco com borda e sombra (opaco: nada aparece atrás das letras) */
+        /* Card / Menu de login com a logo do projeto no fundo e letras pretas nítidas */
         .st-key-card_login_box {{
             background-color: #ffffff !important;
+            background-image:
+                linear-gradient(rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.90)),
+                url('data:image/jpeg;base64,{foto_b64 or LOGO_BASE64 or ""}') !important;
+            background-position: center center, center center !important;
+            background-repeat: no-repeat, no-repeat !important;
+            background-size: cover, contain !important;
             border: 2px solid #f5c400 !important;
             border-radius: 24px !important;
             padding: 1.8rem !important;
@@ -1835,6 +2405,592 @@ def atualizar_db():
         raise PermissionError("Somente o administrador pode alterar os treinos.")
     salvar_dados(st.session_state.db, conta_dados)
 
+def salvar_video_em_catalogo_e_atletas(
+    modalidade,
+    nome_exercicio,
+    referencia_video,
+    salvar_catalogo=True,
+    atualizar_todos_atletas=False,
+    aluno_especifico=None,
+    indice_treino_especifico=None,
+):
+    """Salva o vídeo no exercício do atleta e/ou no catálogo da modalidade e propaga se solicitado."""
+    if not eh_admin:
+        raise PermissionError("Somente os administradores podem alterar vídeos.")
+
+    ref_limpa = str(referencia_video or "").strip()
+    mod_limpa = str(modalidade or "").strip()
+    ex_limpo = str(nome_exercicio or "").strip()
+
+    if salvar_catalogo and mod_limpa and ex_limpo:
+        catalogo = obter_catalogo_sessao()
+        chave = f"{mod_limpa}::{ex_limpo}"
+        if ref_limpa:
+            catalogo[chave] = {
+                "modalidade": mod_limpa,
+                "exercicio": ex_limpo,
+                "url_video": ref_limpa,
+            }
+        else:
+            catalogo.pop(chave, None)
+        salvar_catalogo_videos(catalogo)
+
+    alterou_db = False
+    if aluno_especifico and aluno_especifico in st.session_state.db:
+        lista_t = st.session_state.db[aluno_especifico].get("treinos", [])
+        if indice_treino_especifico is not None and 0 <= indice_treino_especifico < len(lista_t):
+            lista_t[indice_treino_especifico]["url_video"] = ref_limpa
+            alterou_db = True
+        elif ex_limpo:
+            for t in lista_t:
+                if str(t.get("exercicio", "")).strip().casefold() == ex_limpo.casefold():
+                    t["url_video"] = ref_limpa
+                    alterou_db = True
+
+    if atualizar_todos_atletas and ex_limpo:
+        for dados_al in st.session_state.db.values():
+            if not isinstance(dados_al, dict):
+                continue
+            for t in dados_al.get("treinos", []):
+                if str(t.get("exercicio", "")).strip().casefold() == ex_limpo.casefold():
+                    t["url_video"] = ref_limpa
+                    alterou_db = True
+
+    if alterou_db:
+        atualizar_db()
+
+def renderizar_central_videos_admin(aluno_contexto=None, sufixo="adm"):
+    """Renderiza a aba exclusiva de administradores para gravar e adicionar vídeos para cada exercício."""
+    if not eh_admin:
+        st.error("Acesso restrito aos administradores.")
+        return
+
+    catalogo_videos = obter_catalogo_sessao()
+
+    st.markdown(
+        f"""
+        <div style="background: linear-gradient(135deg, rgba(245, 196, 0, 0.14) 0%, rgba(15, 23, 42, 0.82) 100%), url('data:image/jpeg;base64,{LOGO_BASE64 or ""}') center center / contain no-repeat; background-color: #0b1120; border: 1px solid rgba(245, 196, 0, 0.38); border-radius: 20px; padding: 1.3rem 1.5rem; margin-bottom: 1.2rem;">
+            <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                <span style="font-size: 2.1rem;">🎬</span>
+                <div>
+                    <span class="kn-chip" style="font-size: 0.75rem; padding: 3px 10px; margin-bottom: 4px;">🔒 EXCLUSIVO ADMINISTRADORES (LEO & WILLIAM)</span>
+                    <h3 style="margin: 4px 0 2px; color: #ffffff;">Central de Gravação e Vídeos dos Exercícios</h3>
+                    <p style="margin: 0; color: #cbd5e1; font-size: 0.92rem;">
+                        Grave vídeos na hora pela câmera, envie vídeos da galeria/aparelho ou adicione links do YouTube para cada exercício.
+                    </p>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ==========================================
+    # PAINEL 1: ESTÚDIO DE GRAVAÇÃO E ENVIO RÁPIDO
+    # ==========================================
+    with st.container(border=True):
+        st.markdown("#### 🔴 Estúdio Rápido: Gravar ou Colocar Vídeo em um Exercício")
+        st.caption("Escolha abaixo o exercício alvo e depois grave pela câmera, envie do celular/computador ou cole um link:")
+
+        opcoes_escopo = []
+        if aluno_contexto and aluno_contexto in st.session_state.db:
+            opcoes_escopo.append(f"🏋️ Exercícios da Ficha de {aluno_contexto}")
+        opcoes_escopo.append("📚 Exercícios por Modalidade (Catálogo Geral de Exercícios)")
+        if not aluno_contexto and st.session_state.db:
+            opcoes_escopo.append("👤 Escolher um Atleta Específico")
+
+        escopo_sel = st.radio(
+            "Onde deseja adicionar o vídeo?",
+            opcoes_escopo,
+            horizontal=True,
+            key=f"rd_escopo_vid_{sufixo}_{aluno_contexto or 'geral'}",
+        )
+
+        atleta_alvo = aluno_contexto
+        idx_treino_alvo = None
+        modalidade_alvo = "Futebol"
+        exercicio_alvo = ""
+
+        if escopo_sel.startswith("🏋️") and atleta_alvo in st.session_state.db:
+            dados_atl = st.session_state.db[atleta_alvo]
+            modalidade_alvo = dados_atl.get("modalidade", "Futebol")
+            treinos_atl = dados_atl.get("treinos", [])
+            exercicios_mod = obter_exercicios_modalidade(modalidade_alvo, catalogo_videos)
+
+            if treinos_atl:
+                opcoes_t = [
+                    f"{idx + 1}. {t.get('exercicio', 'Exercício')} ({t.get('series', 3)}x {t.get('reps', '10 a 12')}) — {'✅ Com vídeo' if (t.get('url_video') or obter_video_catalogo(modalidade_alvo, t.get('exercicio', ''), catalogo_videos)) else '⚠️ Sem vídeo'}"
+                    for idx, t in enumerate(treinos_atl)
+                ] + ["➕ Adicionar em outro exercício da modalidade"]
+                escolha_t = st.selectbox(
+                    f"Selecione o Exercício de {atleta_alvo}:",
+                    range(len(opcoes_t)),
+                    format_func=lambda i: opcoes_t[i],
+                    key=f"sb_est_treino_atl_{sufixo}_{atleta_alvo}",
+                )
+                if escolha_t < len(treinos_atl):
+                    idx_treino_alvo = escolha_t
+                    exercicio_alvo = treinos_atl[escolha_t].get("exercicio", "")
+                else:
+                    c_ex_m, c_ex_novo = st.columns(2)
+                    with c_ex_m:
+                        ex_mod_sel = st.selectbox(
+                            f"Exercício de {MODALIDADES_ICONES.get(modalidade_alvo, modalidade_alvo)}:",
+                            exercicios_mod + ["+ Digitar novo exercício"],
+                            key=f"sb_est_ex_extra_{sufixo}_{atleta_alvo}",
+                        )
+                    with c_ex_novo:
+                        ex_novo_dig = st.text_input(
+                            "Ou digite o nome do exercício:",
+                            key=f"txt_est_ex_extra_{sufixo}_{atleta_alvo}",
+                        )
+                    exercicio_alvo = ex_novo_dig.strip() if ex_novo_dig.strip() else (
+                        ex_mod_sel if ex_mod_sel != "+ Digitar novo exercício" else ""
+                    )
+            else:
+                st.info(f"A ficha de **{atleta_alvo}** ainda não tem exercícios. Escolha abaixo o exercício para já adicioná-lo com vídeo:")
+                c_ex_m, c_ex_novo = st.columns(2)
+                with c_ex_m:
+                    ex_mod_sel = st.selectbox(
+                        f"Exercício de {MODALIDADES_ICONES.get(modalidade_alvo, modalidade_alvo)}:",
+                        exercicios_mod + ["+ Digitar novo exercício"],
+                        key=f"sb_est_vazio_ex_{sufixo}_{atleta_alvo}",
+                    )
+                with c_ex_novo:
+                    ex_novo_dig = st.text_input(
+                        "Ou digite o nome do exercício:",
+                        key=f"txt_est_vazio_ex_{sufixo}_{atleta_alvo}",
+                    )
+                exercicio_alvo = ex_novo_dig.strip() if ex_novo_dig.strip() else (
+                    ex_mod_sel if ex_mod_sel != "+ Digitar novo exercício" else ""
+                )
+
+        elif escopo_sel.startswith("👤"):
+            nomes_atletas = list(st.session_state.db.keys())
+            c_atl_sel, c_ex_atl_sel = st.columns(2)
+            with c_atl_sel:
+                atleta_alvo = st.selectbox(
+                    "Selecione o Atleta:",
+                    nomes_atletas,
+                    key=f"sb_est_qualquer_atl_{sufixo}",
+                )
+            dados_atl = st.session_state.db.get(atleta_alvo, {})
+            modalidade_alvo = dados_atl.get("modalidade", "Futebol")
+            treinos_atl = dados_atl.get("treinos", [])
+            with c_ex_atl_sel:
+                if treinos_atl:
+                    idx_treino_alvo = st.selectbox(
+                        "Exercício da Ficha:",
+                        range(len(treinos_atl)),
+                        format_func=lambda i: f"{i + 1}. {treinos_atl[i].get('exercicio', 'Exercício')} ({'✅ Com vídeo' if treinos_atl[i].get('url_video') else '⚠️ Sem vídeo'})",
+                        key=f"sb_est_qualquer_t_{sufixo}_{atleta_alvo}",
+                    )
+                    exercicio_alvo = treinos_atl[idx_treino_alvo].get("exercicio", "")
+                else:
+                    exercicios_mod = obter_exercicios_modalidade(modalidade_alvo, catalogo_videos)
+                    exercicio_alvo = st.selectbox(
+                        "Exercício da Modalidade (será adicionado ao atleta):",
+                        exercicios_mod,
+                        key=f"sb_est_qualquer_mod_ex_{sufixo}_{atleta_alvo}",
+                    )
+        else:
+            atleta_alvo = None
+            idx_treino_alvo = None
+            mod_padrao = (
+                st.session_state.db[aluno_contexto].get("modalidade", "Futebol")
+                if aluno_contexto and aluno_contexto in st.session_state.db
+                else "Futebol"
+            )
+            lista_mods = list(MODALIDADES_EXERCICIOS.keys())
+            idx_mod = lista_mods.index(mod_padrao) if mod_padrao in lista_mods else 0
+
+            c_mod_cat, c_ex_cat, c_novo_cat = st.columns([1.1, 1.3, 1.1])
+            with c_mod_cat:
+                modalidade_alvo = st.selectbox(
+                    "Modalidade:",
+                    lista_mods,
+                    index=idx_mod,
+                    format_func=lambda m: MODALIDADES_ICONES.get(m, m),
+                    key=f"sb_est_cat_mod_{sufixo}",
+                )
+            exercicios_mod = obter_exercicios_modalidade(modalidade_alvo, catalogo_videos)
+            with c_ex_cat:
+                ex_cat_sel = st.selectbox(
+                    "Exercício:",
+                    exercicios_mod + ["+ Cadastrar novo exercício"],
+                    format_func=lambda e: (
+                        e if e == "+ Cadastrar novo exercício"
+                        else f"{e} {'(✅ Com vídeo)' if obter_video_catalogo(modalidade_alvo, e, catalogo_videos) else '(⚠️ Sem vídeo)'}"
+                    ),
+                    key=f"sb_est_cat_ex_{sufixo}_{modalidade_alvo}",
+                )
+            with c_novo_cat:
+                ex_cat_novo = st.text_input(
+                    "Ou Novo Exercício:",
+                    placeholder="Digite se for novo...",
+                    key=f"txt_est_cat_novo_{sufixo}_{modalidade_alvo}",
+                )
+            exercicio_alvo = ex_cat_novo.strip() if ex_cat_novo.strip() else (
+                ex_cat_sel if ex_cat_sel != "+ Cadastrar novo exercício" else ""
+            )
+
+        chave_estudio = f"est_{sufixo}_{re.sub(r'[^a-z0-9]+', '_', (modalidade_alvo + '_' + exercicio_alvo).lower())[:28]}"
+
+        aba_gravar_enviar, aba_link_url = st.tabs([
+            "📷 1. Gravar Vídeo na Hora ou Enviar Arquivo (Câmera / Celular / PC)",
+            "🔗 2. Colar Link de Vídeo (YouTube / Shorts / Internet)",
+        ])
+
+        with aba_gravar_enviar:
+            col_cam_live, col_upload_file = st.columns([1.15, 1], gap="large")
+            with col_cam_live:
+                st.markdown("**🎥 Opção A — Gravar Ao Vivo pela Câmera do Navegador:**")
+                renderizar_gravador_camera_html(chave_estudio, exercicio_alvo or "exercicio")
+
+            with col_upload_file:
+                st.markdown("**📁 Opção B — Gravar pela Câmera do Celular ou Escolher Vídeo da Galeria/PC:**")
+                st.info(
+                    "💡 **No celular:** toque em **Browse files** abaixo e escolha **Câmera / Filmadora** para gravar na hora, ou escolha um vídeo pronto da sua **Galeria**.\n\n"
+                    "💡 **No computador:** grave ao lado e clique em **'4. Anexar Vídeo Gravado'** ou selecione um arquivo de vídeo do PC."
+                )
+                with st.container(key=f"box_up_vid_{chave_estudio}"):
+                    arquivo_vid_est = st.file_uploader(
+                        f"Selecionar ou Gravar Vídeo para '{exercicio_alvo or 'Exercício'}'",
+                        type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                        key=f"file_up_vid_{chave_estudio}",
+                    )
+
+                salvar_padrao_cat = st.checkbox(
+                    f"📌 Salvar como vídeo padrão de '{exercicio_alvo or 'exercício'}' em {MODALIDADES_ICONES.get(modalidade_alvo, modalidade_alvo)}",
+                    value=True,
+                    key=f"chk_cat_up_{chave_estudio}",
+                )
+                propagar_todos_up = st.checkbox(
+                    "🔄 Aplicar também em todos os atletas que possuem este exercício",
+                    value=True,
+                    key=f"chk_prop_up_{chave_estudio}",
+                )
+
+                if arquivo_vid_est is not None:
+                    st.success(f"🎬 Vídeo pronto para salvar: **{arquivo_vid_est.name}** ({arquivo_vid_est.size / 1024:.0f} KB)")
+                    try:
+                        st.video(arquivo_vid_est)
+                    except Exception:
+                        pass
+
+                if st.button(
+                    f"💾 Salvar Vídeo Gravado/Enviado em '{exercicio_alvo or 'Exercício'}'",
+                    type="primary",
+                    use_container_width=True,
+                    key=f"btn_salvar_arq_est_{chave_estudio}",
+                ):
+                    if not exercicio_alvo:
+                        st.error("Selecione ou digite o nome do exercício primeiro.")
+                    elif arquivo_vid_est is None:
+                        st.error("Grave um vídeo na câmera ao lado (e clique em '4. Anexar Vídeo Gravado') ou selecione um arquivo de vídeo na caixa acima.")
+                    else:
+                        try:
+                            ref_salva = salvar_arquivo_video_upload(arquivo_vid_est, f"{modalidade_alvo}_{exercicio_alvo}")
+                            # Se o atleta foi selecionado mas ainda não tinha o exercício na ficha, adiciona
+                            if atleta_alvo and atleta_alvo in st.session_state.db and idx_treino_alvo is None:
+                                st.session_state.db[atleta_alvo].setdefault("treinos", []).append({
+                                    "exercicio": exercicio_alvo,
+                                    "series": 3,
+                                    "reps": "10 a 12",
+                                    "url_video": ref_salva,
+                                    "observacoes": "",
+                                })
+                                idx_treino_alvo = len(st.session_state.db[atleta_alvo]["treinos"]) - 1
+
+                            salvar_video_em_catalogo_e_atletas(
+                                modalidade=modalidade_alvo,
+                                nome_exercicio=exercicio_alvo,
+                                referencia_video=ref_salva,
+                                salvar_catalogo=salvar_padrao_cat,
+                                atualizar_todos_atletas=propagar_todos_up,
+                                aluno_especifico=atleta_alvo,
+                                indice_treino_especifico=idx_treino_alvo,
+                            )
+                            notificar_sucesso(f"Vídeo salvo para '{exercicio_alvo}'!", "🎥")
+                            st.success(f"✅ Vídeo de **{exercicio_alvo}** salvo com sucesso!")
+                            st.rerun()
+                        except Exception as erro_v:
+                            st.error(f"Erro ao salvar vídeo: {erro_v}")
+
+        with aba_link_url:
+            video_atual_est = ""
+            if atleta_alvo and idx_treino_alvo is not None:
+                treinos_tmp = st.session_state.db.get(atleta_alvo, {}).get("treinos", [])
+                if 0 <= idx_treino_alvo < len(treinos_tmp):
+                    video_atual_est = treinos_tmp[idx_treino_alvo].get("url_video", "")
+            if not video_atual_est and exercicio_alvo:
+                video_atual_est = obter_video_catalogo(modalidade_alvo, exercicio_alvo, catalogo_videos)
+
+            val_link_inicial = "" if str(video_atual_est).startswith("arquivo_local:") else str(video_atual_est or "")
+            link_digitado = st.text_input(
+                f"URL do Vídeo para '{exercicio_alvo or 'Exercício'}' (YouTube, Shorts, Vimeo ou Link Direto .mp4):",
+                value=val_link_inicial,
+                placeholder="https://www.youtube.com/watch?v=...",
+                key=f"txt_link_est_{chave_estudio}",
+            )
+            c_chk1, c_chk2 = st.columns(2)
+            with c_chk1:
+                salvar_padrao_link = st.checkbox(
+                    f"📌 Salvar como vídeo padrão de '{exercicio_alvo or 'exercício'}'",
+                    value=True,
+                    key=f"chk_cat_lnk_{chave_estudio}",
+                )
+            with c_chk2:
+                propagar_todos_link = st.checkbox(
+                    "🔄 Aplicar em todos os atletas com este exercício",
+                    value=True,
+                    key=f"chk_prop_lnk_{chave_estudio}",
+                )
+
+            if st.button(
+                f"💾 Salvar Link de Vídeo em '{exercicio_alvo or 'Exercício'}'",
+                type="primary",
+                use_container_width=True,
+                key=f"btn_salvar_link_est_{chave_estudio}",
+            ):
+                if not exercicio_alvo:
+                    st.error("Selecione ou digite o nome do exercício.")
+                elif not link_digitado.strip():
+                    st.error("Cole um link válido de vídeo.")
+                else:
+                    ref_link = normalizar_url_video(link_digitado.strip())
+                    if atleta_alvo and atleta_alvo in st.session_state.db and idx_treino_alvo is None:
+                        st.session_state.db[atleta_alvo].setdefault("treinos", []).append({
+                            "exercicio": exercicio_alvo,
+                            "series": 3,
+                            "reps": "10 a 12",
+                            "url_video": ref_link,
+                            "observacoes": "",
+                        })
+                        idx_treino_alvo = len(st.session_state.db[atleta_alvo]["treinos"]) - 1
+
+                    salvar_video_em_catalogo_e_atletas(
+                        modalidade=modalidade_alvo,
+                        nome_exercicio=exercicio_alvo,
+                        referencia_video=ref_link,
+                        salvar_catalogo=salvar_padrao_link,
+                        atualizar_todos_atletas=propagar_todos_link,
+                        aluno_especifico=atleta_alvo,
+                        indice_treino_especifico=idx_treino_alvo,
+                    )
+                    notificar_sucesso(f"Link de vídeo salvo para '{exercicio_alvo}'!", "🔗")
+                    st.success(f"✅ Link de vídeo salvo em **{exercicio_alvo}**!")
+                    st.rerun()
+
+    st.write("")
+
+    # ==========================================
+    # PAINEL 2: VÍDEOS DE CADA EXERCÍCIO DO ATLETA ATUAL
+    # ==========================================
+    if aluno_contexto and aluno_contexto in st.session_state.db:
+        dados_al_ctx = st.session_state.db[aluno_contexto]
+        mod_ctx = dados_al_ctx.get("modalidade", "Futebol")
+        treinos_ctx = dados_al_ctx.get("treinos", [])
+
+        st.markdown(f"#### 🏋️ Vídeos de Cada Exercício de {aluno_contexto} ({MODALIDADES_ICONES.get(mod_ctx, mod_ctx)})")
+        if not treinos_ctx:
+            st.info(f"Nenhum exercício cadastrado ainda para {aluno_contexto}. Use o painel acima ou a aba 'Plano de Treino' para adicionar.")
+        else:
+            for idx_ex, item_t in enumerate(treinos_ctx):
+                nome_ex_item = item_t.get("exercicio", "Exercício")
+                vid_proprio = item_t.get("url_video", "").strip()
+                vid_catalogo = obter_video_catalogo(mod_ctx, nome_ex_item, catalogo_videos)
+                vid_efetivo = vid_proprio or vid_catalogo
+                status_badge = "✅ Com Vídeo" if vid_efetivo else "⚠️ Sem Vídeo"
+
+                with st.expander(f"🎬 {idx_ex + 1}. {nome_ex_item} ({item_t.get('series', 3)}x {item_t.get('reps', '10 a 12')})  •  {status_badge}", expanded=not bool(vid_efetivo)):
+                    c_form_ex, c_prev_ex = st.columns([1.15, 1], gap="large")
+                    slug_al = re.sub(r"[^a-z0-9]+", "_", str(aluno_contexto).lower()).strip("_")
+                    chave_card = f"card_atl_{sufixo}_{slug_al}_{idx_ex}"
+
+                    with c_form_ex:
+                        with st.container(key=f"box_up_vid_{chave_card}"):
+                            up_card = st.file_uploader(
+                                f"📁 Enviar ou Gravar Vídeo pelo Celular/PC para '{nome_ex_item}'",
+                                type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                                key=f"up_file_{chave_card}",
+                            )
+                        url_card = st.text_input(
+                            "🔗 Ou Link do Vídeo (YouTube / Shorts / MP4)",
+                            value="" if vid_efetivo.startswith("arquivo_local:") else vid_efetivo,
+                            placeholder="https://www.youtube.com/watch?v=...",
+                            key=f"txt_url_{chave_card}",
+                        )
+                        abrir_cam_card = st.checkbox(
+                            "📷 Abrir gravador de câmera ao vivo neste exercício",
+                            key=f"chk_cam_{chave_card}",
+                        )
+                        if abrir_cam_card:
+                            renderizar_gravador_camera_html(chave_card, nome_ex_item)
+
+                        b_col1, b_col2 = st.columns([2, 1])
+                        with b_col1:
+                            if st.button("💾 Salvar Vídeo neste Exercício", type="primary", use_container_width=True, key=f"btn_save_{chave_card}"):
+                                try:
+                                    if up_card is not None:
+                                        nova_ref = salvar_arquivo_video_upload(up_card, f"{mod_ctx}_{nome_ex_item}")
+                                    elif url_card.strip():
+                                        nova_ref = normalizar_url_video(url_card.strip())
+                                    else:
+                                        nova_ref = ""
+
+                                    if not nova_ref:
+                                        st.warning("Envie/grave um arquivo de vídeo ou informe um link antes de salvar.")
+                                    else:
+                                        salvar_video_em_catalogo_e_atletas(
+                                            modalidade=mod_ctx,
+                                            nome_exercicio=nome_ex_item,
+                                            referencia_video=nova_ref,
+                                            salvar_catalogo=True,
+                                            atualizar_todos_atletas=False,
+                                            aluno_especifico=aluno_contexto,
+                                            indice_treino_especifico=idx_ex,
+                                        )
+                                        notificar_sucesso(f"Vídeo salvo em '{nome_ex_item}'!", "🎥")
+                                        st.rerun()
+                                except Exception as e_card:
+                                    st.error(f"Erro ao salvar vídeo: {e_card}")
+                        with b_col2:
+                            if vid_efetivo:
+                                if st.button("🗑️ Remover Vídeo", use_container_width=True, key=f"btn_del_vid_{chave_card}"):
+                                    item_t["url_video"] = ""
+                                    atualizar_db()
+                                    notificar_sucesso(f"Vídeo removido de '{nome_ex_item}'.", "🗑️")
+                                    st.rerun()
+
+                    with c_prev_ex:
+                        if vid_efetivo:
+                            origem_txt = "📁 Vídeo Gravado/Enviado no Sistema" if vid_efetivo.startswith("arquivo_local:") else "🔗 Link de Vídeo"
+                            st.caption(f" Status: **{origem_txt}**")
+                            exibir_player_video(vid_efetivo)
+                        else:
+                            st.markdown(
+                                """
+                                <div class="kn-empty-video">
+                                    <span style="font-size: 2rem;">🎬</span>
+                                    <span style="color: #64748b; font-size: 0.88rem;">Nenhum vídeo adicionado para este exercício</span>
+                                </div>
+                                """,
+                                unsafe_allow_html=True,
+                            )
+
+        st.divider()
+
+    # ==========================================
+    # PAINEL 3: CATÁLOGO DE VÍDEOS DE TODOS OS EXERCÍCIOS POR MODALIDADE
+    # ==========================================
+    st.markdown("#### 📚 Vídeos Padrão de Cada Exercício por Modalidade")
+    st.caption("Adicione ou grave o vídeo de cada exercício da modalidade. Sempre que você adicionar esse exercício para qualquer atleta, o vídeo já entrará automaticamente!")
+
+    lista_modalidades = list(MODALIDADES_EXERCICIOS.keys())
+    mod_inicial = (
+        st.session_state.db[aluno_contexto].get("modalidade", "Futebol")
+        if aluno_contexto and aluno_contexto in st.session_state.db
+        else "Futebol"
+    )
+    idx_m_cat = lista_modalidades.index(mod_inicial) if mod_inicial in lista_modalidades else 0
+
+    mod_catalogo_sel = st.selectbox(
+        "Selecione a Modalidade para gerenciar os vídeos de cada exercício:",
+        lista_modalidades,
+        index=idx_m_cat,
+        format_func=lambda m: MODALIDADES_ICONES.get(m, m),
+        key=f"sb_gerenciar_cat_mod_{sufixo}",
+    )
+
+    exercicios_da_modalidade = obter_exercicios_modalidade(mod_catalogo_sel, catalogo_videos)
+    com_video_count = sum(bool(obter_video_catalogo(mod_catalogo_sel, ex, catalogo_videos)) for ex in exercicios_da_modalidade)
+    st.caption(f"Modalidade **{MODALIDADES_ICONES.get(mod_catalogo_sel, mod_catalogo_sel)}**: **{com_video_count} de {len(exercicios_da_modalidade)}** exercícios possuem vídeo cadastrado.")
+
+    for idx_m_ex, nome_ex_mod in enumerate(exercicios_da_modalidade):
+        vid_cat_atual = obter_video_catalogo(mod_catalogo_sel, nome_ex_mod, catalogo_videos)
+        icone_status = "✅ Com Vídeo" if vid_cat_atual else "⚠️ Sem Vídeo"
+        chave_item_cat = f"cat_{sufixo}_{re.sub(r'[^a-z0-9]+', '_', (mod_catalogo_sel + '_' + nome_ex_mod).lower())}_{idx_m_ex}"
+
+        with st.expander(f"{MODALIDADES_ICONES.get(mod_catalogo_sel, mod_catalogo_sel)}  •  {nome_ex_mod}  —  {icone_status}", expanded=False):
+            col_cat_ed, col_cat_vid = st.columns([1.15, 1], gap="large")
+            with col_cat_ed:
+                with st.container(key=f"box_up_vid_{chave_item_cat}"):
+                    up_cat_item = st.file_uploader(
+                        f"📁 Enviar / Gravar Vídeo para '{nome_ex_mod}'",
+                        type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                        key=f"up_cat_{chave_item_cat}",
+                    )
+                url_cat_item = st.text_input(
+                    f"🔗 Ou Link do Vídeo (YouTube / MP4) para '{nome_ex_mod}'",
+                    value="" if vid_cat_atual.startswith("arquivo_local:") else vid_cat_atual,
+                    placeholder="https://www.youtube.com/watch?v=...",
+                    key=f"url_cat_{chave_item_cat}",
+                )
+                cam_cat_open = st.checkbox(
+                    "📷 Gravar vídeo agora pela câmera",
+                    key=f"cam_cat_{chave_item_cat}",
+                )
+                if cam_cat_open:
+                    renderizar_gravador_camera_html(chave_item_cat, nome_ex_mod)
+
+                bc1, bc2 = st.columns([2, 1])
+                with bc1:
+                    if st.button(
+                        f"💾 Salvar Vídeo em '{nome_ex_mod}'",
+                        type="primary",
+                        use_container_width=True,
+                        key=f"btn_save_cat_{chave_item_cat}",
+                    ):
+                        try:
+                            if up_cat_item is not None:
+                                ref_cat_nova = salvar_arquivo_video_upload(up_cat_item, f"{mod_catalogo_sel}_{nome_ex_mod}")
+                            elif url_cat_item.strip():
+                                ref_cat_nova = normalizar_url_video(url_cat_item.strip())
+                            else:
+                                ref_cat_nova = ""
+
+                            if not ref_cat_nova:
+                                st.warning("Selecione/grave um vídeo ou cole um link antes de salvar.")
+                            else:
+                                salvar_video_em_catalogo_e_atletas(
+                                    modalidade=mod_catalogo_sel,
+                                    nome_exercicio=nome_ex_mod,
+                                    referencia_video=ref_cat_nova,
+                                    salvar_catalogo=True,
+                                    atualizar_todos_atletas=True,
+                                )
+                                notificar_sucesso(f"Vídeo de '{nome_ex_mod}' salvo e aplicado!", "🎥")
+                                st.rerun()
+                        except Exception as err_c:
+                            st.error(f"Erro ao salvar: {err_c}")
+                with bc2:
+                    if vid_cat_atual:
+                        if st.button("🗑️ Remover", use_container_width=True, key=f"btn_rem_cat_{chave_item_cat}"):
+                            salvar_video_em_catalogo_e_atletas(
+                                modalidade=mod_catalogo_sel,
+                                nome_exercicio=nome_ex_mod,
+                                referencia_video="",
+                                salvar_catalogo=True,
+                                atualizar_todos_atletas=False,
+                            )
+                            notificar_sucesso(f"Vídeo padrão removido de '{nome_ex_mod}'.", "🗑️")
+                            st.rerun()
+
+            with col_cat_vid:
+                if vid_cat_atual:
+                    exibir_player_video(vid_cat_atual)
+                else:
+                    st.markdown(
+                        """
+                        <div class="kn-empty-video">
+                            <span style="font-size: 2rem;">🎬</span>
+                            <span style="color: #64748b; font-size: 0.88rem;">Sem vídeo cadastrado para este exercício</span>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
 if st.session_state.get("aviso_exclusao"):
     st.error(st.session_state.pop("aviso_exclusao"))
 
@@ -2108,7 +3264,7 @@ with st.sidebar:
                 notificar_sucesso(f"Treino de {aluno_atual} salvo com sucesso!", "💾")
                 st.success(f"Treino de {aluno_atual} salvo!")
 
-            lista_exercicios = MODALIDADES_EXERCICIOS.get(modalidade_aluno, [])
+            lista_exercicios = obter_exercicios_modalidade(modalidade_aluno)
             opcao_personalizada = "+ Outro exercício"
             
             with st.form(f"form_add_ex_sidebar_{aluno_atual}"):
@@ -2128,6 +3284,11 @@ with st.sidebar:
                 reps = col_reps.text_input("Reps/Tempo", value="10 a 12", key=f"side_txt_reps_{aluno_atual}")
 
                 url_video = st.text_input("URL do Vídeo (YouTube)", placeholder="https://youtube.com/...", key=f"side_txt_video_{aluno_atual}")
+                arq_video_side = st.file_uploader(
+                    "Ou Enviar/Gravar Vídeo (MP4, MOV, WEBM)",
+                    type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                    key=f"side_file_video_{aluno_atual}",
+                )
                 observacoes = st.text_area("Orientações / Observações", placeholder="Ex: Manter tronco firme, foco na explosão...", key=f"side_txt_obs_{aluno_atual}")
 
                 btn_add_side = st.form_submit_button("Adicionar ao Treino", type="primary", use_container_width=True)
@@ -2138,11 +3299,21 @@ with st.sidebar:
                     if not nome_final:
                         st.error("Digite ou selecione o nome do exercício.")
                     else:
+                        video_final_side = url_video.strip()
+                        if arq_video_side is not None:
+                            try:
+                                video_final_side = salvar_arquivo_video_upload(arq_video_side, f"{modalidade_aluno}_{nome_final}")
+                                salvar_video_em_catalogo_e_atletas(modalidade_aluno, nome_final, video_final_side, salvar_catalogo=True)
+                            except Exception as e_vid_s:
+                                st.error(f"Erro ao salvar vídeo: {e_vid_s}")
+                        elif not video_final_side:
+                            video_final_side = obter_video_catalogo(modalidade_aluno, nome_final)
+
                         novo_treino = {
                             "exercicio": nome_final,
                             "series": int(series),
                             "reps": reps.strip() if reps.strip() else "10 a 12",
-                            "url_video": url_video.strip(),
+                            "url_video": video_final_side,
                             "observacoes": observacoes.strip()
                         }
                         st.session_state.db[aluno_atual].setdefault("treinos", []).append(novo_treino)
@@ -2171,8 +3342,8 @@ with st.sidebar:
 if not aluno_atual:
     if eh_admin:
         st.markdown(
-            """
-            <div style="background: linear-gradient(135deg, rgba(21, 29, 47, 0.95) 0%, rgba(13, 19, 32, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 2rem 1.8rem; margin-bottom: 1.5rem; text-align: center;">
+            f"""
+            <div style="background: linear-gradient(135deg, rgba(21, 29, 47, 0.78) 0%, rgba(13, 19, 32, 0.84) 100%), url('data:image/jpeg;base64,{LOGO_BASE64 or ""}') center center / contain no-repeat; background-color: #0b1120; border: 1px solid rgba(245, 196, 0, 0.28); border-radius: 24px; padding: 2rem 1.8rem; margin-bottom: 1.5rem; text-align: center;">
                 <span class="kn-chip" style="margin-bottom: 0.8rem;">⚡ PAINEL DO TREINADOR</span>
                 <h1 style="margin: 0.3rem 0; font-size: 2.3rem;">Treino bem planejado. Evolução constante.</h1>
                 <p style="color: #94a3b8; font-size: 1.05rem; max-width: 720px; margin: 0 auto;">
@@ -2191,76 +3362,85 @@ if not aluno_atual:
         c2.metric("Exercícios no Banco", total_treinos_cadastrados)
         c3.metric("Modalidades Ativas", len(MODALIDADES_EXERCICIOS))
 
-        st.info("👈 Selecione um atleta abaixo para visualizar ou adicionar exercícios ao plano de treino.")
+        tab_home_atletas, tab_home_videos_adm = st.tabs([
+            "👥 Gerenciar Atletas & Planos de Treino",
+            "🎥 Gravar & Adicionar Vídeos dos Exercícios (Somente Admin)",
+        ])
 
-        if total_alunos > 0:
-            with st.container(border=True):
-                st.markdown("#### ⚡ Seleção Rápida de Atleta")
-                st.caption("Escolha o atleta abaixo para abrir e montar o treino imediatamente:")
-                c_sel_rap, c_btn_rap = st.columns([3, 1], vertical_alignment="bottom")
-                with c_sel_rap:
-                    atleta_rapido_home = st.selectbox(
-                        "Selecione o Atleta:",
-                        alunos_existentes,
-                        key="sb_home_quick_select",
-                        format_func=lambda a: f"⚡ {a} ({MODALIDADES_ICONES.get(st.session_state.db[a].get('modalidade'), st.session_state.db[a].get('modalidade', 'Esporte'))}) • {len(st.session_state.db[a].get('treinos', []))} exercícios cadastrados"
-                    )
-                with c_btn_rap:
-                    if st.button("🏋️ Abrir / Montar Treino", type="primary", key="btn_home_quick_open", use_container_width=True):
-                        st.session_state["aluno_selecionado"] = atleta_rapido_home
-                        st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
-                        st.rerun()
+        with tab_home_atletas:
+            st.info("👈 Selecione um atleta abaixo para visualizar ou adicionar exercícios ao plano de treino.")
 
-        with st.expander("➕ Cadastrar Novo Atleta", expanded=(total_alunos == 0)):
-            with st.form("form_cadastrar_aluno_painel"):
-                c_nom, c_mod = st.columns([1.5, 1])
-                with c_nom:
-                    dash_novo_nome = st.text_input("Nome Completo do Atleta", placeholder="Ex.: Lucas Lima", key="txt_dash_novo_aluno")
-                with c_mod:
-                    dash_nova_mod = st.selectbox(
-                        "Modalidade Principal",
-                        list(MODALIDADES_EXERCICIOS.keys()),
-                        format_func=lambda m: MODALIDADES_ICONES.get(m, m),
-                        key="sb_dash_nova_mod"
-                    )
-                if st.form_submit_button("Cadastrar e Montar Treino", type="primary", use_container_width=True):
-                    nome_limpo = dash_novo_nome.strip()
-                    if nome_limpo and nome_limpo not in st.session_state.db:
-                        st.session_state.db[nome_limpo] = {
-                            "modalidade": dash_nova_mod,
-                            "treinos": []
-                        }
-                        atualizar_db()
-                        st.session_state["aluno_selecionado"] = nome_limpo
-                        st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
-                        st.success(f"Atleta {nome_limpo} cadastrado com sucesso!")
-                        st.rerun()
-                    elif nome_limpo in st.session_state.db:
-                        st.error("Este atleta já está cadastrado!")
-                    else:
-                        st.error("Informe o nome do atleta.")
-
-        if total_alunos > 0:
-            st.markdown("### 📋 Atletas Ativos")
-            cols_alunos = st.columns(min(3, max(1, total_alunos)))
-            for idx, (nome_al, dados_al) in enumerate(st.session_state.db.items()):
-                col_target = cols_alunos[idx % len(cols_alunos)]
-                with col_target:
-                    with st.container(border=True):
-                        st.markdown(f"#### ⚡ {nome_al}")
-                        mod = dados_al.get('modalidade', 'Esporte')
-                        st.caption(f"Modalidade: **{MODALIDADES_ICONES.get(mod, mod)}**")
-                        n_exercicios = len(dados_al.get('treinos', []))
-                        st.markdown(f"<span class='kn-chip-cyan'>{n_exercicios} exercícios cadastrados</span>", unsafe_allow_html=True)
-                        st.write("")
-                        if st.button(f"🏋️ Abrir / Montar Treino", key=f"btn_dash_open_{nome_al}", type="primary", use_container_width=True):
-                            st.session_state["aluno_selecionado"] = nome_al
+            if total_alunos > 0:
+                with st.container(border=True):
+                    st.markdown("#### ⚡ Seleção Rápida de Atleta")
+                    st.caption("Escolha o atleta abaixo para abrir e montar o treino imediatamente:")
+                    c_sel_rap, c_btn_rap = st.columns([3, 1], vertical_alignment="bottom")
+                    with c_sel_rap:
+                        atleta_rapido_home = st.selectbox(
+                            "Selecione o Atleta:",
+                            alunos_existentes,
+                            key="sb_home_quick_select",
+                            format_func=lambda a: f"⚡ {a} ({MODALIDADES_ICONES.get(st.session_state.db[a].get('modalidade'), st.session_state.db[a].get('modalidade', 'Esporte'))}) • {len(st.session_state.db[a].get('treinos', []))} exercícios cadastrados"
+                        )
+                    with c_btn_rap:
+                        if st.button("🏋️ Abrir / Montar Treino", type="primary", key="btn_home_quick_open", use_container_width=True):
+                            st.session_state["aluno_selecionado"] = atleta_rapido_home
                             st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
                             st.rerun()
+
+            with st.expander("➕ Cadastrar Novo Atleta", expanded=(total_alunos == 0)):
+                with st.form("form_cadastrar_aluno_painel"):
+                    c_nom, c_mod = st.columns([1.5, 1])
+                    with c_nom:
+                        dash_novo_nome = st.text_input("Nome Completo do Atleta", placeholder="Ex.: Lucas Lima", key="txt_dash_novo_aluno")
+                    with c_mod:
+                        dash_nova_mod = st.selectbox(
+                            "Modalidade Principal",
+                            list(MODALIDADES_EXERCICIOS.keys()),
+                            format_func=lambda m: MODALIDADES_ICONES.get(m, m),
+                            key="sb_dash_nova_mod"
+                        )
+                    if st.form_submit_button("Cadastrar e Montar Treino", type="primary", use_container_width=True):
+                        nome_limpo = dash_novo_nome.strip()
+                        if nome_limpo and nome_limpo not in st.session_state.db:
+                            st.session_state.db[nome_limpo] = {
+                                "modalidade": dash_nova_mod,
+                                "treinos": []
+                            }
+                            atualizar_db()
+                            st.session_state["aluno_selecionado"] = nome_limpo
+                            st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                            st.success(f"Atleta {nome_limpo} cadastrado com sucesso!")
+                            st.rerun()
+                        elif nome_limpo in st.session_state.db:
+                            st.error("Este atleta já está cadastrado!")
+                        else:
+                            st.error("Informe o nome do atleta.")
+
+            if total_alunos > 0:
+                st.markdown("### 📋 Atletas Ativos")
+                cols_alunos = st.columns(min(3, max(1, total_alunos)))
+                for idx, (nome_al, dados_al) in enumerate(st.session_state.db.items()):
+                    col_target = cols_alunos[idx % len(cols_alunos)]
+                    with col_target:
+                        with st.container(border=True):
+                            st.markdown(f"#### ⚡ {nome_al}")
+                            mod = dados_al.get('modalidade', 'Esporte')
+                            st.caption(f"Modalidade: **{MODALIDADES_ICONES.get(mod, mod)}**")
+                            n_exercicios = len(dados_al.get('treinos', []))
+                            st.markdown(f"<span class='kn-chip-cyan'>{n_exercicios} exercícios cadastrados</span>", unsafe_allow_html=True)
+                            st.write("")
+                            if st.button(f"🏋️ Abrir / Montar Treino", key=f"btn_dash_open_{nome_al}", type="primary", use_container_width=True):
+                                st.session_state["aluno_selecionado"] = nome_al
+                                st.session_state["sb_aluno_ver"] = st.session_state.get("sb_aluno_ver", 0) + 1
+                                st.rerun()
+
+        with tab_home_videos_adm:
+            renderizar_central_videos_admin(aluno_contexto=None, sufixo="home")
     else:
         st.markdown(
             f"""
-            <div style="background: linear-gradient(135deg, rgba(21, 29, 47, 0.95) 0%, rgba(13, 19, 32, 0.95) 100%); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 24px; padding: 2rem 1.8rem; margin-bottom: 1.5rem; text-align: center;">
+            <div style="background: linear-gradient(135deg, rgba(21, 29, 47, 0.78) 0%, rgba(13, 19, 32, 0.84) 100%), url('data:image/jpeg;base64,{LOGO_BASE64 or ""}') center center / contain no-repeat; background-color: #0b1120; border: 1px solid rgba(245, 196, 0, 0.28); border-radius: 24px; padding: 2rem 1.8rem; margin-bottom: 1.5rem; text-align: center;">
                 <span class="kn-chip" style="margin-bottom: 0.8rem;">⚡ MEU TREINO</span>
                 <h1 style="margin: 0.3rem 0; font-size: 2.3rem;">Olá, {usuario_autenticado} 👋</h1>
                 <p style="color: #94a3b8; font-size: 1.05rem; margin: 0;">
@@ -2545,8 +3725,12 @@ else:
                     st.rerun()
 
     # --- MÉTRICAS DE TREINO DO ATLETA (KPIS) ---
+    catalogo_atual = obter_catalogo_sessao()
     total_series = sum(t.get("series", 0) for t in treinos)
-    total_videos = sum(bool(t.get("url_video")) for t in treinos)
+    total_videos = sum(
+        bool(t.get("url_video") or obter_video_catalogo(modalidade, t.get("exercicio", ""), catalogo_atual))
+        for t in treinos
+    )
     faltas = dados_aluno.get("faltas", [])
 
     if eh_admin:
@@ -2556,8 +3740,13 @@ else:
         m3.metric("Vídeos de Apoio", total_videos)
         m4.metric("Faltas Registradas", len(faltas))
 
-        tab_treino, tab_frequencia, tab_analise = st.tabs(
-            ["📋 Plano de Treino", "📅 Frequência & Presença", "📈 Análise de Volume"]
+        tab_treino, tab_videos_adm, tab_frequencia, tab_analise = st.tabs(
+            [
+                "📋 Plano de Treino",
+                "🎥 Gravar & Adicionar Vídeos (Somente Admin)",
+                "📅 Frequência & Presença",
+                "📈 Análise de Volume",
+            ]
         )
     else:
         m1, m2, m3 = st.columns(3)
@@ -2572,7 +3761,7 @@ else:
     # ==========================================
     with tab_treino:
         if eh_admin:
-            lista_exercicios_sug = MODALIDADES_EXERCICIOS.get(modalidade, [])
+            lista_exercicios_sug = obter_exercicios_modalidade(modalidade, catalogo_atual)
 
             # --- BARRA SUPERIOR DE SALVAMENTO & STATUS DO TREINO ---
             with st.container(border=True):
@@ -2639,7 +3828,7 @@ else:
                                         "exercicio": ex_nome,
                                         "series": int(series_rap),
                                         "reps": reps_rap.strip() if reps_rap.strip() else "10 a 12",
-                                        "url_video": "",
+                                        "url_video": obter_video_catalogo(modalidade, ex_nome, catalogo_atual),
                                         "observacoes": ""
                                     })
                                 atualizar_db()
@@ -2654,7 +3843,7 @@ else:
                                     "exercicio": ex_nome,
                                     "series": 3,
                                     "reps": "10 a 12",
-                                    "url_video": "",
+                                    "url_video": obter_video_catalogo(modalidade, ex_nome, catalogo_atual),
                                     "observacoes": ""
                                 })
                             atualizar_db()
@@ -2697,9 +3886,15 @@ else:
                             )
 
                         txt_video = st.text_input(
-                            "URL do Vídeo Demonstrativo (YouTube)",
+                            "URL do Vídeo Demonstrativo (YouTube / Link)",
                             placeholder="https://www.youtube.com/watch?v=...",
                             key=f"main_video_{aluno_atual}"
+                        )
+                        arq_video_det = st.file_uploader(
+                            "Ou Enviar / Gravar Arquivo de Vídeo do Aparelho (MP4, MOV, WEBM)",
+                            type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                            key=f"main_file_video_{aluno_atual}",
+                            help="No celular, toque aqui para abrir a Câmera/Filmadora ou escolher da Galeria."
                         )
                         txt_obs = st.text_area(
                             "Orientações Técnicas / Dicas do Treinador",
@@ -2720,11 +3915,21 @@ else:
                             if not nome_exercicio_final:
                                 st.error("Informe o nome do exercício para adicionar.")
                             else:
+                                video_det_final = txt_video.strip()
+                                if arq_video_det is not None:
+                                    try:
+                                        video_det_final = salvar_arquivo_video_upload(arq_video_det, f"{modalidade}_{nome_exercicio_final}")
+                                        salvar_video_em_catalogo_e_atletas(modalidade, nome_exercicio_final, video_det_final, salvar_catalogo=True)
+                                    except Exception as err_vd:
+                                        st.error(f"Erro ao salvar arquivo de vídeo: {err_vd}")
+                                elif not video_det_final:
+                                    video_det_final = obter_video_catalogo(modalidade, nome_exercicio_final, catalogo_atual)
+
                                 novo_treino = {
                                     "exercicio": nome_exercicio_final,
                                     "series": int(num_series),
                                     "reps": txt_reps.strip() if txt_reps.strip() else "10 a 12",
-                                    "url_video": txt_video.strip(),
+                                    "url_video": video_det_final,
                                     "observacoes": txt_obs.strip()
                                 }
                                 st.session_state.db[aluno_atual].setdefault("treinos", []).append(novo_treino)
@@ -2791,6 +3996,7 @@ else:
                 reps = treino.get('reps', '10 a 12')
                 obs = treino.get('observacoes', '').strip()
                 url_video = treino.get('url_video', '').strip()
+                video_efetivo = url_video or obter_video_catalogo(modalidade, nome_exercicio, catalogo_atual)
 
                 titulo_expander = f"⚡ {i+1}. {nome_exercicio}  •  {series} Séries  •  {reps}"
                 with st.expander(titulo_expander, expanded=True):
@@ -2864,14 +4070,30 @@ else:
                                     c_es, c_er = st.columns(2)
                                     ed_series = c_es.number_input("Séries", min_value=1, max_value=30, value=int(series), step=1, key=f"ed_s_{aluno_atual}_{i}")
                                     ed_reps = c_er.text_input("Reps/Tempo", value=str(reps), key=f"ed_r_{aluno_atual}_{i}")
-                                    ed_video = st.text_input("URL do Vídeo", value=url_video, key=f"ed_v_{aluno_atual}_{i}")
+                                    ed_video = st.text_input(
+                                        "URL do Vídeo (YouTube / Link)",
+                                        value="" if url_video.startswith("arquivo_local:") else url_video,
+                                        key=f"ed_v_{aluno_atual}_{i}"
+                                    )
+                                    ed_arq_video = st.file_uploader(
+                                        "Ou Enviar/Gravar Novo Arquivo de Vídeo",
+                                        type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                                        key=f"ed_file_v_{aluno_atual}_{i}"
+                                    )
                                     ed_obs = st.text_area("Orientações", value=obs, key=f"ed_o_{aluno_atual}_{i}")
                                     if st.form_submit_button("Salvar Alterações", type="primary", use_container_width=True):
+                                        nome_ed_final = ed_nome.strip() if ed_nome.strip() else nome_exercicio
+                                        vid_ed_final = ed_video.strip() if ed_video.strip() else url_video
+                                        if ed_arq_video is not None:
+                                            try:
+                                                vid_ed_final = salvar_arquivo_video_upload(ed_arq_video, f"{modalidade}_{nome_ed_final}")
+                                            except Exception as err_ed_v:
+                                                st.error(f"Erro ao salvar vídeo: {err_ed_v}")
                                         st.session_state.db[aluno_atual]["treinos"][i] = {
-                                            "exercicio": ed_nome.strip() if ed_nome.strip() else nome_exercicio,
+                                            "exercicio": nome_ed_final,
                                             "series": int(ed_series),
                                             "reps": ed_reps.strip(),
-                                            "url_video": ed_video.strip(),
+                                            "url_video": vid_ed_final,
                                             "observacoes": ed_obs.strip()
                                         }
                                         atualizar_db()
@@ -2880,13 +4102,9 @@ else:
                                         st.rerun()
 
                     with col_midia:
-                        if url_video:
+                        if video_efetivo:
                             st.markdown("<span style='font-size: 0.85rem; font-weight: 700; color: #cbd5e1;'>🎥 DEMONSTRAÇÃO EM VÍDEO</span>", unsafe_allow_html=True)
-                            url_video_ok = normalizar_url_video(url_video)
-                            try:
-                                st.video(url_video_ok)
-                            except Exception:
-                                st.warning("Não foi possível reproduzir o vídeo. Verifique se o link é válido.")
+                            exibir_player_video(video_efetivo)
                         else:
                             st.markdown(
                                 """
@@ -2897,6 +4115,61 @@ else:
                                 """,
                                 unsafe_allow_html=True
                             )
+
+                        if eh_admin:
+                            slug_in_al = re.sub(r"[^a-z0-9]+", "_", str(aluno_atual).lower()).strip("_")
+                            chave_in_card = f"inline_{slug_in_al}_{i}"
+                            with st.expander("🎥 Gravar ou Colocar Vídeo neste Exercício (Admin)", expanded=False):
+                                with st.container(key=f"box_up_vid_{chave_in_card}"):
+                                    up_in = st.file_uploader(
+                                        "📁 Enviar Vídeo ou Gravar pelo Celular/PC",
+                                        type=["mp4", "mov", "webm", "avi", "mkv", "m4v", "3gp"],
+                                        key=f"file_up_vid_{chave_in_card}",
+                                        help="No celular, toque aqui para filmar com a câmera ou escolher da galeria."
+                                    )
+                                link_in = st.text_input(
+                                    "🔗 Ou Link do Vídeo (YouTube / MP4)",
+                                    value="" if video_efetivo.startswith("arquivo_local:") else video_efetivo,
+                                    placeholder="https://www.youtube.com/watch?v=...",
+                                    key=f"lnk_in_{chave_in_card}"
+                                )
+                                cam_in = st.checkbox("📷 Abrir gravador de câmera ao vivo aqui", key=f"cam_in_{chave_in_card}")
+                                if cam_in:
+                                    renderizar_gravador_camera_html(chave_in_card, nome_exercicio)
+
+                                c_bi1, c_bi2 = st.columns([2, 1])
+                                with c_bi1:
+                                    if st.button("💾 Salvar Vídeo", type="primary", use_container_width=True, key=f"btn_sv_in_{chave_in_card}"):
+                                        try:
+                                            if up_in is not None:
+                                                nova_ref_in = salvar_arquivo_video_upload(up_in, f"{modalidade}_{nome_exercicio}")
+                                            elif link_in.strip():
+                                                nova_ref_in = normalizar_url_video(link_in.strip())
+                                            else:
+                                                nova_ref_in = ""
+                                            if not nova_ref_in:
+                                                st.warning("Grave/selecione um vídeo ou informe o link.")
+                                            else:
+                                                salvar_video_em_catalogo_e_atletas(
+                                                    modalidade=modalidade,
+                                                    nome_exercicio=nome_exercicio,
+                                                    referencia_video=nova_ref_in,
+                                                    salvar_catalogo=True,
+                                                    atualizar_todos_atletas=False,
+                                                    aluno_especifico=aluno_atual,
+                                                    indice_treino_especifico=i,
+                                                )
+                                                notificar_sucesso(f"Vídeo salvo em '{nome_exercicio}'!", "🎥")
+                                                st.rerun()
+                                        except Exception as err_in:
+                                            st.error(f"Erro ao salvar vídeo: {err_in}")
+                                with c_bi2:
+                                    if video_efetivo:
+                                        if st.button("🗑️ Remover", use_container_width=True, key=f"btn_rm_in_{chave_in_card}"):
+                                            st.session_state.db[aluno_atual]["treinos"][i]["url_video"] = ""
+                                            atualizar_db()
+                                            notificar_sucesso("Vídeo removido deste exercício.", "🗑️")
+                                            st.rerun()
 
             if eh_admin and treinos:
                 st.write("")
@@ -2925,6 +4198,13 @@ else:
                             if st.button("Cancelar", key=f"btn_conf_limpar_nao_{aluno_atual}", use_container_width=True):
                                 st.session_state.pop(f"confirm_limpar_{aluno_atual}", None)
                                 st.rerun()
+
+    # ==========================================
+    # TAB EXCLUSIVA ADMIN: GRAVAR E ADICIONAR VÍDEOS DOS EXERCÍCIOS
+    # ==========================================
+    if eh_admin:
+        with tab_videos_adm:
+            renderizar_central_videos_admin(aluno_contexto=aluno_atual, sufixo="atleta")
 
     # ==========================================
     # TAB 2: FREQUÊNCIA (APENAS ADMINISTRADOR)
