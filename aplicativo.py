@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import json
 import os
+import sys
 import re
 import base64
 import hashlib
@@ -14,6 +15,11 @@ import secrets
 from datetime import date
 from io import BytesIO
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+try:
+    from fundo_padrao import FUNDO_PADRAO_B64
+except Exception:
+    FUNDO_PADRAO_B64 = None
 
 # ==========================================
 # CONFIGURAÇÕES E DADOS BASE
@@ -26,12 +32,26 @@ st.set_page_config(
 )
 
 DIRETORIO_APP = os.path.dirname(os.path.abspath(__file__))
+if DIRETORIO_APP not in sys.path:
+    sys.path.insert(0, DIRETORIO_APP)
+
 ARQUIVO_DADOS = os.path.join(DIRETORIO_APP, "dados_treinos.json")
 ARQUIVO_USUARIOS = os.path.join(DIRETORIO_APP, "usuarios.json")
 ARQUIVO_CATALOGO_VIDEOS = os.path.join(DIRETORIO_APP, "catalogo_videos.json")
 DIRETORIO_VIDEOS = os.path.join(DIRETORIO_APP, "videos_exercicios")
 os.makedirs(DIRETORIO_VIDEOS, exist_ok=True)
 CAMINHO_LOGO = os.path.join(DIRETORIO_APP, "1000370127.jpg")
+
+def assegurar_arquivo_logo():
+    """Garante que o arquivo de logo/fundo exista no servidor mesmo se não estiver no repositório Git."""
+    try:
+        if not os.path.isfile(CAMINHO_LOGO) and FUNDO_PADRAO_B64:
+            with open(CAMINHO_LOGO, "wb") as f:
+                f.write(base64.b64decode(FUNDO_PADRAO_B64))
+    except Exception:
+        pass
+
+assegurar_arquivo_logo()
 def checar_firestore_ativo():
     if os.getenv("FIRESTORE_ENABLED", "").lower() in {"1", "true", "yes"}:
         return True
@@ -65,14 +85,17 @@ def eh_administrador(nome_usuario):
     return nome_usuario.strip().lower() in ADMINS_AUTORIZADOS
 
 def injetar_css(codigo_css):
-    """Injeta código CSS com compatibilidade universal para todas as versões do Streamlit."""
+    """Injeta código CSS com compatibilidade universal para todas as versões do Streamlit (local e servidor)."""
+    tag_style = f"<style>\n{codigo_css}\n</style>"
+    try:
+        st.markdown(tag_style, unsafe_allow_html=True)
+    except Exception:
+        pass
     try:
         if hasattr(st, "html"):
-            st.html(f"<style>\n{codigo_css}\n</style>")
-        else:
-            st.markdown(f"<style>\n{codigo_css}\n</style>", unsafe_allow_html=True)
+            st.html(tag_style)
     except Exception:
-        st.markdown(f"<style>\n{codigo_css}\n</style>", unsafe_allow_html=True)
+        pass
 
 MODALIDADES_ICONES = {
     "Futebol": "⚽ Futebol",
@@ -92,8 +115,9 @@ MODALIDADES_EXERCICIOS = {
 
 @st.cache_data(show_spinner=False)
 def carregar_imagem_base64(caminho, max_dim=(1920, 1920), qualidade=85):
+    """Carrega imagem em Base64 com suporte a cache, redimensionamento e fallback nativo."""
     if not caminho or not os.path.isfile(caminho):
-        return None
+        return FUNDO_PADRAO_B64
     try:
         imagem = Image.open(caminho).convert("RGB")
         resample = getattr(getattr(Image, "Resampling", Image), "LANCZOS", getattr(Image, "ANTIALIAS", None))
@@ -105,48 +129,107 @@ def carregar_imagem_base64(caminho, max_dim=(1920, 1920), qualidade=85):
         imagem.save(buffer, format="JPEG", quality=qualidade, optimize=True)
         return base64.b64encode(buffer.getvalue()).decode("ascii")
     except Exception:
-        return None
+        return FUNDO_PADRAO_B64
 
 def obter_caminho_foto_login():
-    candidatos = [
-        "foto_login.jpg",
-        "foto_login.png",
-        "foto_login.jpeg",
-        "fundo_login.jpg",
-        "fundo_login.png",
-        "fundo_login.jpeg",
-        "login_bg.jpg",
-        "login_bg.png",
-        "1000370127.jpg",
+    """Localiza a imagem de fundo de forma resiliente em qualquer sistema de arquivos (Windows/Linux/Streamlit Cloud)."""
+    candidatos_nomes = [
+        "foto_login.jpg", "foto_login.png", "foto_login.jpeg", "foto_login.webp",
+        "fundo_login.jpg", "fundo_login.png", "fundo_login.jpeg", "fundo_login.webp",
+        "login_bg.jpg", "login_bg.png", "login_bg.jpeg", "login_bg.webp",
+        "fundo.jpg", "fundo.png", "fundo.jpeg",
+        "1000370127.jpg", "1000370127.png", "1000370127.jpeg"
     ]
-    for nome in candidatos:
-        caminho = os.path.join(DIRETORIO_APP, nome)
-        if os.path.isfile(caminho):
-            return caminho
+    diretorios_busca = [
+        DIRETORIO_APP,
+        os.getcwd(),
+        os.path.join(DIRETORIO_APP, "assets"),
+        os.path.join(DIRETORIO_APP, "static"),
+        os.path.join(DIRETORIO_APP, "images")
+    ]
+    # Busca direta por arquivo existente
+    for d in diretorios_busca:
+        if not os.path.isdir(d):
+            continue
+        for nome in candidatos_nomes:
+            c = os.path.join(d, nome)
+            if os.path.isfile(c):
+                return c
+
+    # Busca insensível a maiúsculas/minúsculas para servidores Linux
+    for d in diretorios_busca:
+        if not os.path.isdir(d):
+            continue
+        try:
+            arquivos = os.listdir(d)
+            for arq in arquivos:
+                arq_low = arq.lower()
+                for c in candidatos_nomes:
+                    if arq_low == c.lower():
+                        c_path = os.path.join(d, arq)
+                        if os.path.isfile(c_path):
+                            return c_path
+        except Exception:
+            pass
+
     return CAMINHO_LOGO if os.path.isfile(CAMINHO_LOGO) else None
 
-LOGO_BASE64 = carregar_imagem_base64(CAMINHO_LOGO, (1024, 1024), 88)
-FUNDO_LOGO_B64 = carregar_imagem_base64(obter_caminho_foto_login() or CAMINHO_LOGO, (1400, 1400), 85)
+LOGO_BASE64 = carregar_imagem_base64(CAMINHO_LOGO, (1024, 1024), 88) or FUNDO_PADRAO_B64
+FUNDO_LOGO_B64 = carregar_imagem_base64(obter_caminho_foto_login() or CAMINHO_LOGO, (1400, 1400), 85) or LOGO_BASE64 or FUNDO_PADRAO_B64
 
 def injetar_fundo_dashboard():
-    logo_b64 = carregar_imagem_base64(CAMINHO_LOGO, (1400, 1400), 85) or FUNDO_LOGO_B64
-    fundo_pag_b64 = carregar_imagem_base64(obter_caminho_foto_login() or CAMINHO_LOGO, (1600, 1600), 85) or logo_b64
-    if logo_b64:
+    logo_b64 = carregar_imagem_base64(CAMINHO_LOGO, (1400, 1400), 85) or FUNDO_LOGO_B64 or FUNDO_PADRAO_B64
+    fundo_pag_b64 = carregar_imagem_base64(obter_caminho_foto_login() or CAMINHO_LOGO, (1600, 1600), 85) or logo_b64 or FUNDO_PADRAO_B64
+    if fundo_pag_b64:
         injetar_css(
             f"""
-            /* 1. FUNDO DE TELA DE TODAS AS PÁGINAS COM A LOGO DO PROJETO */
-            html, body, .stApp, [data-testid="stAppViewContainer"] {{
+            /* 1. FUNDO DE TELA DE TODAS AS PÁGINAS COM A LOGO DO PROJETO (UNIVERSAL) */
+            .stApp::before {{
+                content: "" !important;
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                right: 0 !important;
+                bottom: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
                 background-color: #05070d !important;
                 background-image:
-                    radial-gradient(circle at 50% 50%, rgba(7, 11, 19, 0.50) 0%, rgba(5, 8, 15, 0.68) 70%, rgba(4, 6, 12, 0.82) 100%),
+                    radial-gradient(circle at 50% 50%, rgba(7, 11, 19, 0.45) 0%, rgba(5, 8, 15, 0.65) 70%, rgba(4, 6, 12, 0.82) 100%),
+                    url('data:image/jpeg;base64,{fundo_pag_b64}') !important;
+                background-position: center center, center center !important;
+                background-repeat: no-repeat, no-repeat !important;
+                background-size: cover, contain !important;
+                z-index: 0 !important;
+                pointer-events: none !important;
+            }}
+
+            html, body, .stApp,
+            [data-testid="stApp"],
+            [data-testid="stAppViewContainer"],
+            .stAppViewContainer {{
+                background-color: #05070d !important;
+                background-image:
+                    radial-gradient(circle at 50% 50%, rgba(7, 11, 19, 0.45) 0%, rgba(5, 8, 15, 0.65) 70%, rgba(4, 6, 12, 0.82) 100%),
                     url('data:image/jpeg;base64,{fundo_pag_b64}') !important;
                 background-position: center center, center center !important;
                 background-repeat: no-repeat, no-repeat !important;
                 background-attachment: fixed, fixed !important;
                 background-size: cover, contain !important;
             }}
-            section.main, [data-testid="stMain"], [data-testid="stMainBlockContainer"] {{
+
+            section.main,
+            .main,
+            [data-testid="stMain"],
+            .stMain,
+            [data-testid="stMainBlockContainer"],
+            .stMainBlockContainer,
+            div[data-testid="stAppViewContainer"] > section,
+            div[data-testid="stAppViewContainer"] > div {{
                 background: transparent !important;
+                background-color: transparent !important;
+                position: relative !important;
+                z-index: 1 !important;
             }}
 
             /* 2. FUNDO DO MENU LATERAL (SIDEBAR) COM A LOGO DO PROJETO */
@@ -253,8 +336,10 @@ st.markdown(
     }
 
     /* Fundo Studio / High-Performance Atmosphere */
-    [data-testid="stAppViewContainer"] {
-        background: radial-gradient(circle at 50% -10%, #172338 0%, #0a0e17 65%, #05070c 100%) fixed;
+    [data-testid="stAppViewContainer"],
+    [data-testid="stMain"],
+    section.main {
+        background: transparent !important;
     }
 
     [data-testid="stHeader"] {
@@ -1993,21 +2078,43 @@ def plot_volume_series(df_treinos):
 # ==========================================
 def mostrar_tela_login():
     caminho_foto = obter_caminho_foto_login()
-    foto_b64 = carregar_imagem_base64(caminho_foto, (1920, 1920), 85)
+    foto_b64 = carregar_imagem_base64(caminho_foto, (1920, 1920), 85) or FUNDO_LOGO_B64 or LOGO_BASE64 or FUNDO_PADRAO_B64
 
     if foto_b64:
         estilo_fundo_tela_toda = f"""
-        /* FUNDO DA TELA TODA DE LOGIN COM A FOTO EM TELA CHEIA */
-        html, body, .stApp,
-        [data-testid="stAppViewContainer"] {{
+        /* FUNDO DA TELA TODA DE LOGIN COM A FOTO EM TELA CHEIA (UNIVERSAL) */
+        .stApp::before {{
+            content: "" !important;
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
             background-color: #05070c !important;
             background-image: 
                 linear-gradient(rgba(5, 7, 13, 0.40), rgba(5, 7, 13, 0.70)),
                 url('data:image/jpeg;base64,{foto_b64}') !important;
             background-position: center center !important;
             background-repeat: no-repeat !important;
-            background-attachment: fixed !important;
             background-size: cover !important;
+            z-index: 0 !important;
+            pointer-events: none !important;
+        }}
+
+        html, body, .stApp,
+        [data-testid="stApp"],
+        [data-testid="stAppViewContainer"],
+        .stAppViewContainer {{
+            background-color: #05070c !important;
+            background-image: 
+                linear-gradient(rgba(5, 7, 13, 0.40), rgba(5, 7, 13, 0.70)),
+                url('data:image/jpeg;base64,{foto_b64}') !important;
+            background-position: center center !important;
+            background-repeat: no-repeat !important;
+            background-size: cover !important;
+            background-attachment: fixed !important;
             min-height: 100vh !important;
             width: 100vw !important;
         }}
@@ -2044,9 +2151,17 @@ def mostrar_tela_login():
         {estilo_fundo_tela_toda}
 
         section.main,
+        .main,
         [data-testid="stMain"],
-        [data-testid="stMainBlockContainer"] {{
+        .stMain,
+        [data-testid="stMainBlockContainer"],
+        .stMainBlockContainer,
+        div[data-testid="stAppViewContainer"] > section,
+        div[data-testid="stAppViewContainer"] > div {{
             background: transparent !important;
+            background-color: transparent !important;
+            position: relative !important;
+            z-index: 1 !important;
         }}
 
         /* Centralização perfeita na tela de login */
@@ -2218,6 +2333,8 @@ def mostrar_tela_login():
     with st.container(border=True, key="card_login_box"):
         if CAMINHO_LOGO and os.path.isfile(CAMINHO_LOGO):
             st.image(CAMINHO_LOGO, width=170)
+        elif LOGO_BASE64:
+            st.image(BytesIO(base64.b64decode(LOGO_BASE64)), width=170)
 
         st.markdown(
             """
@@ -2998,8 +3115,10 @@ if st.session_state.get("aviso_exclusao"):
 # BARRA LATERAL (SIDEBAR)
 # ==========================================
 with st.sidebar:
-    if os.path.exists(CAMINHO_LOGO):
+    if CAMINHO_LOGO and os.path.exists(CAMINHO_LOGO):
         st.image(CAMINHO_LOGO, width=220)
+    elif LOGO_BASE64:
+        st.image(BytesIO(base64.b64decode(LOGO_BASE64)), width=220)
     else:
         st.markdown("### ⚡ KW ALTA PERFORMANCE")
 
